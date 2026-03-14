@@ -49,7 +49,7 @@ export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
         {track.genre}
       </span>
 
-      <span className="text-xs font-mono tabular-nums text-muted-foreground whitespace-nowrap">
+      <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60 whitespace-nowrap">
         {formatRelativeTime(track.sharedAt)}
       </span>
 
