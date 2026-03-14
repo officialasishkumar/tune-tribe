@@ -14,6 +14,7 @@ import {
   UserPlus,
   Bell,
   ChevronRight,
+  Users,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,8 +24,7 @@ import { TrackCard } from "@/components/TrackCard";
 import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
 import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
-import { FriendsSearch } from "@/components/FriendsSearch";
-import { FriendRequestsPanel } from "@/components/FriendRequestsPanel";
+import { FriendsManager } from "@/components/FriendsManager";
 import { CreateGroupModal } from "@/components/CreateGroupModal";
 import { useTheme } from "@/hooks/use-theme";
 import { api } from "@/lib/api";
@@ -39,9 +39,9 @@ const Dashboard = () => {
     return stored ? Number(stored) : null;
   });
   const [searchQuery, setSearchQuery] = useState("");
-  const [showFriendsSearch, setShowFriendsSearch] = useState(false);
+  const [friendsManagerTab, setFriendsManagerTab] = useState<"friends" | "requests" | "search" | null>(null);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showFriendRequests, setShowFriendRequests] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
   const { logout } = useAuth();
@@ -119,6 +119,23 @@ const Dashboard = () => {
     },
   });
 
+  const deleteGroupMutation = useMutation({
+    mutationFn: (groupId: number | string) => api.deleteGroup(Number(groupId)),
+    onSuccess: (_, deletedGroupId) => {
+      toast.success("Group deleted successfully");
+      setGroupToDelete(null);
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
+      if (activeGroup === Number(deletedGroupId)) {
+        setActiveGroup(null);
+        localStorage.removeItem("tunetribe-active-group");
+      }
+    },
+    onError: () => {
+      toast.error("Failed to delete group");
+      setGroupToDelete(null);
+    }
+  });
+
   const filteredGroups: Group[] = useMemo(
     () =>
       (groupsQuery.data ?? [])
@@ -130,6 +147,7 @@ const Dashboard = () => {
           trackCount: group.trackCount,
           lastActive: formatRelativeTime(group.lastActiveAt),
           members: group.members,
+          isOwner: group.isOwner,
         })),
     [groupsQuery.data, searchQuery]
   );
@@ -164,7 +182,7 @@ const Dashboard = () => {
             <span className="text-base font-semibold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">TuneTribe</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 relative" onClick={() => setShowFriendRequests(true)}>
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 relative" onClick={() => setFriendsManagerTab("requests")}>
               <Bell className="w-5 h-5" />
               {pendingRequestCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -172,7 +190,10 @@ const Dashboard = () => {
                 </span>
               )}
             </Button>
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setShowFriendsSearch(true)}>
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setFriendsManagerTab("friends")}>
+              <Users className="w-4.5 h-4.5" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setFriendsManagerTab("search")}>
               <UserPlus className="w-4.5 h-4.5" />
             </Button>
             <Button
@@ -232,6 +253,7 @@ const Dashboard = () => {
                 group={group}
                 isActive={activeGroup === group.id}
                 onClick={() => setActiveGroup(Number(group.id))}
+                onDelete={() => setGroupToDelete(group)}
                 index={index}
               />
             ))}
@@ -318,7 +340,7 @@ const Dashboard = () => {
         <div className="flex items-center justify-around h-14">
           {[
             { icon: Disc3, label: "Feed", active: true },
-            { icon: Search, label: "Search", active: false, onClick: () => setShowFriendsSearch(true) },
+            { icon: Search, label: "Search", active: false, onClick: () => setFriendsManagerTab("search") },
             { icon: Plus, label: "Add", active: false, onClick: () => setShowCreateGroup(true) },
             {
               icon: BarChart3,
@@ -343,10 +365,12 @@ const Dashboard = () => {
       </nav>
 
       <AnimatePresence>
-        {showFriendsSearch && <FriendsSearch onClose={() => setShowFriendsSearch(false)} />}
-      </AnimatePresence>
-      <AnimatePresence>
-        {showFriendRequests && <FriendRequestsPanel onClose={() => setShowFriendRequests(false)} />}
+        {friendsManagerTab && (
+          <FriendsManager
+            initialTab={friendsManagerTab}
+            onClose={() => setFriendsManagerTab(null)}
+          />
+        )}
       </AnimatePresence>
       <AnimatePresence>
         {showCreateGroup && (
@@ -358,6 +382,41 @@ const Dashboard = () => {
       </AnimatePresence>
       <AnimatePresence>
         {selectedTrack && <TrackDetailsModal track={selectedTrack} onClose={() => setSelectedTrack(null)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {groupToDelete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] bg-foreground/20 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setGroupToDelete(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-sm bg-background rounded-xl p-6 shadow-elevated"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold mb-2">Delete Group</h3>
+              <p className="text-muted-foreground text-sm mb-6">
+                Are you sure you want to delete <span className="font-medium text-foreground">{groupToDelete.name}</span>? This action cannot be undone.
+              </p>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setGroupToDelete(null)}>Cancel</Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => deleteGroupMutation.mutate(groupToDelete.id)}
+                  disabled={deleteGroupMutation.isPending}
+                >
+                  {deleteGroupMutation.isPending ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

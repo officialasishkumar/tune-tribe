@@ -163,6 +163,7 @@ class GroupSummary(APIModel):
     track_count: int
     last_active_at: datetime | None
     members: list[str]
+    is_owner: bool = False
 
 
 class TrackCreateRequest(APIModel):

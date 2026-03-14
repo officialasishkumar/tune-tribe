@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, delete
 from sqlalchemy.orm import Session, joinedload
 
 from app.bootstrap import run_startup_tasks
@@ -214,6 +214,31 @@ def create_app() -> FastAPI:
             )
         return results
 
+    @app.get("/api/friends/list", response_model=list[FriendUser])
+    def list_friends(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[FriendUser]:
+        friend_ids = _accepted_friend_id_set(db, current_user.id)
+        if not friend_ids:
+            return []
+        users = db.scalars(
+            select(User)
+            .where(User.id.in_(friend_ids))
+            .order_by(User.display_name.asc())
+        ).all()
+        return [
+            FriendUser(
+                id=user.id,
+                username=user.username,
+                display_name=user.display_name,
+                avatar_url=user.avatar_url,
+                is_friend=True,
+                friendship_status="accepted",
+            )
+            for user in users
+        ]
+
     @app.post("/api/friends/{friend_id}", response_model=FriendUser)
     def add_friend(
         friend_id: int,
@@ -285,6 +310,22 @@ def create_app() -> FastAPI:
         )
         if reverse is not None:
             db.delete(reverse)
+
+        # Remove each other from each other's groups
+        db.execute(
+            delete(GroupMembership)
+            .where(GroupMembership.user_id == friend_id)
+            .where(GroupMembership.group_id.in_(
+                select(Group.id).where(Group.owner_id == current_user.id)
+            ))
+        )
+        db.execute(
+            delete(GroupMembership)
+            .where(GroupMembership.user_id == current_user.id)
+            .where(GroupMembership.group_id.in_(
+                select(Group.id).where(Group.owner_id == friend_id)
+            ))
+        )
         db.commit()
 
     @app.get("/api/friends/requests", response_model=list[FriendRequest])
@@ -379,7 +420,7 @@ def create_app() -> FastAPI:
             .order_by(Group.created_at.asc())
         ).unique().all()
 
-        return [_serialize_group(group) for group in groups]
+        return [_serialize_group(group, current_user.id) for group in groups]
 
     @app.post("/api/groups", response_model=GroupSummary, status_code=status.HTTP_201_CREATED)
     def create_group(
@@ -406,7 +447,19 @@ def create_app() -> FastAPI:
             .where(Group.id == group.id)
             .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
         )
-        return _serialize_group(group)
+        return _serialize_group(group, current_user.id)
+
+    @app.delete("/api/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_group(
+        group_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        group = db.scalar(select(Group).where(Group.id == group_id, Group.owner_id == current_user.id))
+        if group is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found or you don't have permission.")
+        db.delete(group)
+        db.commit()
 
     @app.get("/api/groups/{group_id}/tracks", response_model=list[TrackSummary])
     def list_group_tracks(
@@ -527,7 +580,7 @@ def _pending_incoming_set(db: Session, user_id: int) -> set[int]:
     return set(rows)
 
 
-def _serialize_group(group: Group) -> GroupSummary:
+def _serialize_group(group: Group, current_user_id: int) -> GroupSummary:
     last_active_at = None
     if group.tracks:
         last_active_at = max(track.shared_at for track in group.tracks)
@@ -538,6 +591,7 @@ def _serialize_group(group: Group) -> GroupSummary:
         track_count=len(group.tracks),
         last_active_at=last_active_at,
         members=[membership.user.username for membership in group.memberships],
+        is_owner=group.owner_id == current_user_id,
     )
 
 

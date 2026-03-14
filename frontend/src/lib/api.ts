@@ -163,6 +163,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  deleteGroup: (groupId: number) =>
+    apiRequest<void>(`/api/groups/${groupId}`, {
+      method: "DELETE",
+    }),
   listGroupTracks: (groupId: number) => apiRequest<Track[]>(`/api/groups/${groupId}/tracks`),
   addTrack: (groupId: number, url: string) =>
     apiRequest<Track>(`/api/groups/${groupId}/tracks`, {
@@ -175,6 +179,8 @@ export const api = {
     apiRequest<Analytics>(`/api/analytics/me?window=${encodeURIComponent(window)}`),
   searchUsers: (query: string) =>
     apiRequest<Friend[]>(`/api/friends?q=${encodeURIComponent(query)}`),
+  listFriends: () =>
+    apiRequest<Friend[]>("/api/friends/list"),
   addFriend: (friendId: number) =>
     apiRequest<Friend>(`/api/friends/${friendId}`, {
       method: "POST",
