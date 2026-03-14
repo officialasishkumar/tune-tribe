@@ -31,6 +31,7 @@ from app.schemas import (
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.analytics import build_analytics, filter_tracks_by_window
+from app.services.auth import find_user_by_identifier
 from app.services.metadata import SOURCE_LABELS, resolve_track
 
 
@@ -108,9 +109,12 @@ def create_app() -> FastAPI:
 
     @app.post("/api/auth/login", response_model=TokenResponse)
     def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
-        user = db.scalar(select(User).where(func.lower(User.email) == payload.email.lower()))
+        user = find_user_by_identifier(db, payload.identifier)
         if user is None or not verify_password(payload.password, user.password_hash):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email, username, or password.",
+            )
 
         return _token_response_for_user(user)
 
@@ -376,11 +380,13 @@ def _serialize_track(track: TrackShare) -> TrackSummary:
         id=track.id,
         title=track.title,
         artist=track.artist,
+        album=track.album,
         genre=track.genre or "Unknown",
         url=track.source_url,
         source=SOURCE_LABELS.get(track.source, track.source.title()),
         shared_by=track.shared_by.username,
         album_art_url=track.album_art_url,
+        duration_ms=track.duration_ms,
         shared_at=_ensure_aware(track.shared_at),
     )
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
 def to_camel(field_name: str) -> str:
@@ -49,8 +49,20 @@ class RegisterRequest(APIModel):
 
 
 class LoginRequest(APIModel):
-    email: EmailStr
+    identifier: str = Field(
+        min_length=3,
+        max_length=255,
+        validation_alias=AliasChoices("identifier", "email"),
+    )
     password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("identifier")
+    @classmethod
+    def normalize_identifier(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Email or username is required.")
+        return cleaned
 
 
 class ProfileUpdateRequest(APIModel):
@@ -91,11 +103,13 @@ class TrackSummary(APIModel):
     id: int
     title: str
     artist: str
+    album: str | None = None
     genre: str
     url: str
     source: str
     shared_by: str
     album_art_url: str | None = None
+    duration_ms: int | None = None
     shared_at: datetime
 
 

@@ -11,6 +11,25 @@ import type {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const TOKEN_STORAGE_KEY = "tunetribe-auth-token";
 
+export type ApiIssue = {
+  path: string[];
+  message: string;
+};
+
+export class ApiError extends Error {
+  status: number;
+  issues: ApiIssue[];
+  detail: unknown;
+
+  constructor(message: string, options: { status: number; issues?: ApiIssue[]; detail?: unknown }) {
+    super(message);
+    this.name = "ApiError";
+    this.status = options.status;
+    this.issues = options.issues ?? [];
+    this.detail = options.detail;
+  }
+}
+
 type RequestOptions = RequestInit & {
   skipAuth?: boolean;
 };
@@ -29,6 +48,29 @@ const toCamelCase = (value: unknown): unknown => {
   }
 
   return value;
+};
+
+const toApiIssues = (detail: unknown): ApiIssue[] => {
+  if (!Array.isArray(detail)) {
+    return [];
+  }
+
+  return detail.flatMap((entry): ApiIssue[] => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+
+    const message = typeof entry.msg === "string" ? entry.msg : null;
+    const path = Array.isArray(entry.loc)
+      ? entry.loc.filter((part): part is string => typeof part === "string")
+      : [];
+
+    if (!message) {
+      return [];
+    }
+
+    return [{ path, message }];
+  });
 };
 
 export const getStoredToken = () => localStorage.getItem(TOKEN_STORAGE_KEY);
@@ -57,10 +99,21 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     }
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch (error) {
+    throw new ApiError(
+      "We couldn't reach TuneTribe. Check your internet connection or make sure the backend is running, then try again.",
+      {
+        status: 0,
+        detail: error,
+      }
+    );
+  }
 
   if (response.status === 204) {
     return undefined as T;
@@ -68,16 +121,23 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    const issues = toApiIssues(payload?.detail);
     const message =
-      typeof payload?.detail === "string" ? payload.detail : "The request could not be completed.";
-    throw new Error(message);
+      typeof payload?.detail === "string"
+        ? payload.detail
+        : issues[0]?.message ?? "The request could not be completed. Please try again.";
+    throw new ApiError(message, {
+      status: response.status,
+      issues,
+      detail: payload?.detail,
+    });
   }
 
   return toCamelCase(payload) as T;
 }
 
 export const api = {
-  login: (input: { email: string; password: string }) =>
+  login: (input: { identifier: string; password: string }) =>
     apiRequest<AuthResponse>("/api/auth/login", {
       method: "POST",
       body: JSON.stringify(input),

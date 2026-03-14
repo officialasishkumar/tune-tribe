@@ -36,11 +36,13 @@ export type Track = {
   id: number | string;
   title: string;
   artist: string;
+  album?: string | null;
   genre: string;
   url: string;
   source: string;
   sharedBy: string;
   albumArtUrl?: string | null;
+  durationMs?: number | null;
   sharedAt: string;
 };
 

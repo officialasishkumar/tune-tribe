@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GroupCard, type Group } from "@/components/GroupCard";
 import { TrackCard } from "@/components/TrackCard";
+import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
 import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
 import { FriendsSearch } from "@/components/FriendsSearch";
@@ -38,6 +39,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFriendsSearch, setShowFriendsSearch] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
   const { logout } = useAuth();
   const navigate = useNavigate();
@@ -63,6 +65,10 @@ const Dashboard = () => {
   useEffect(() => {
     if (!activeGroup) return;
     localStorage.setItem("tunetribe-active-group", String(activeGroup));
+  }, [activeGroup]);
+
+  useEffect(() => {
+    setSelectedTrack(null);
   }, [activeGroup]);
 
   const tracksQuery = useQuery({
@@ -123,11 +129,13 @@ const Dashboard = () => {
       id: track.id,
       title: track.title,
       artist: track.artist,
+      album: track.album ?? undefined,
       genre: track.genre,
       url: track.url,
       source: track.source,
       sharedBy: track.sharedBy,
       albumArtUrl: track.albumArtUrl ?? undefined,
+      durationMs: track.durationMs ?? undefined,
       sharedAt: track.sharedAt,
     })
   );
@@ -262,17 +270,9 @@ const Dashboard = () => {
                 tracks.map((track, index) => (
                   <TrackCard
                     key={track.id}
-                    track={{
-                      id: track.id,
-                      title: track.title,
-                      artist: track.artist,
-                      url: track.url,
-                      sharedBy: track.sharedBy,
-                      genre: track.genre,
-                      timestamp: formatRelativeTime(track.sharedAt),
-                      albumArt: track.albumArtUrl ?? undefined,
-                    }}
+                    track={track}
                     index={index}
+                    onClick={() => setSelectedTrack(track)}
                   />
                 ))
               )}
@@ -333,6 +333,9 @@ const Dashboard = () => {
             onCreate={(name, memberIds) => createGroupMutation.mutateAsync({ name, memberIds }).then(() => undefined)}
           />
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {selectedTrack && <TrackDetailsModal track={selectedTrack} onClose={() => setSelectedTrack(null)} />}
       </AnimatePresence>
     </div>
   );

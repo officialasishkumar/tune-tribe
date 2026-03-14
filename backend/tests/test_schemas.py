@@ -1,4 +1,4 @@
-from app.schemas import GroupCreateRequest, ProfileUpdateRequest, RegisterRequest
+from app.schemas import GroupCreateRequest, LoginRequest, ProfileUpdateRequest, RegisterRequest
 
 
 def test_register_request_accepts_frontend_camel_case_payload() -> None:
@@ -34,3 +34,21 @@ def test_group_and_profile_requests_accept_frontend_camel_case_payloads() -> Non
     assert group_payload.member_ids == [1, 2, 3]
     assert profile_payload.display_name == "Alex Rivera"
     assert profile_payload.avatar_url == "https://example.com/avatar.png"
+
+
+def test_login_request_accepts_identifier_or_email_payload() -> None:
+    identifier_payload = LoginRequest.model_validate(
+        {
+            "identifier": " Alex_User ",
+            "password": "TuneTribe!123",
+        }
+    )
+    email_payload = LoginRequest.model_validate(
+        {
+            "email": "alex@example.com",
+            "password": "TuneTribe!123",
+        }
+    )
+
+    assert identifier_payload.identifier == "Alex_User"
+    assert email_payload.identifier == "alex@example.com"
