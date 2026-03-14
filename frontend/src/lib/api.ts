@@ -2,6 +2,7 @@ import type {
   Analytics,
   AuthResponse,
   Friend,
+  FriendRequest,
   GlobalStatsResponse,
   GroupSummary,
   Track,
@@ -181,6 +182,16 @@ export const api = {
   removeFriend: (friendId: number) =>
     apiRequest<void>(`/api/friends/${friendId}`, {
       method: "DELETE",
+    }),
+  listFriendRequests: () =>
+    apiRequest<FriendRequest[]>("/api/friends/requests"),
+  acceptFriendRequest: (requestId: number) =>
+    apiRequest<Friend>(`/api/friends/requests/${requestId}/accept`, {
+      method: "POST",
+    }),
+  rejectFriendRequest: (requestId: number) =>
+    apiRequest<void>(`/api/friends/requests/${requestId}/reject`, {
+      method: "POST",
     }),
   getGlobalStats: () =>
     apiRequest<GlobalStatsResponse>("/api/stats", {

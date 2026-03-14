@@ -43,7 +43,8 @@ def seed_database(db: Session) -> None:
     db.flush()
 
     for friend_username in ["maya", "joe", "sam", "chris", "eli"]:
-        db.add(Friendship(user_id=users["alex"].id, friend_id=users[friend_username].id))
+        db.add(Friendship(user_id=users["alex"].id, friend_id=users[friend_username].id, status="accepted"))
+        db.add(Friendship(user_id=users[friend_username].id, friend_id=users["alex"].id, status="accepted"))
 
     groups = [
         _create_group(db, "The Heavy Rotation", users["alex"], ["alex", "maya", "joe", "kim", "sam", "lee"]),

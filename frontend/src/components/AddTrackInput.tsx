@@ -27,14 +27,14 @@ export const AddTrackInput = ({ onSubmit }: AddTrackInputProps) => {
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      <div className="flex items-center gap-2 p-2 rounded-lg bg-card shadow-card">
-        <Link2 className="w-4 h-4 text-muted-foreground ml-2 flex-shrink-0" />
+      <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card shadow-card">
+        <Link2 className="w-5 h-5 text-muted-foreground ml-2 flex-shrink-0" />
         <Input
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Paste a Spotify, Apple Music, or YouTube URL..."
-          className="border-0 shadow-none focus-visible:ring-0 text-sm bg-transparent px-0 h-8"
+          className="border-0 shadow-none focus-visible:ring-0 text-base bg-transparent px-0 h-9"
         />
         <AnimatePresence mode="wait">
           {isFetching ? (
@@ -43,9 +43,9 @@ export const AddTrackInput = ({ onSubmit }: AddTrackInputProps) => {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-muted-foreground"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground"
             >
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <Loader2 className="w-4 h-4 animate-spin" />
               <span className="font-mono">Fetching...</span>
             </motion.div>
           ) : url.trim() ? (
@@ -56,8 +56,8 @@ export const AddTrackInput = ({ onSubmit }: AddTrackInputProps) => {
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ ease: [0.2, 0, 0, 1] }}
             >
-              <Button type="submit" size="sm" className="h-7 px-3 text-xs gap-1">
-                Post <ArrowRight className="w-3 h-3" />
+              <Button type="submit" size="sm" className="h-8 px-3 text-sm gap-1">
+                Post <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             </motion.div>
           ) : null}

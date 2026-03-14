@@ -19,6 +19,7 @@ from app.http import install_security_middleware
 from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
     AnalyticsResponse,
+    FriendRequest,
     FriendUser,
     GlobalStatsResponse,
     GroupCreateRequest,
@@ -176,7 +177,9 @@ def create_app() -> FastAPI:
         current_user: User = Depends(get_current_user),
     ) -> list[FriendUser]:
         cleaned_query = q.strip()
-        friend_ids = _friend_id_set(db, current_user.id)
+        friend_ids = _accepted_friend_id_set(db, current_user.id)
+        pending_outgoing = _pending_outgoing_set(db, current_user.id)
+        pending_incoming = _pending_incoming_set(db, current_user.id)
         users = db.scalars(
             select(User)
             .where(User.id != current_user.id)
@@ -189,16 +192,27 @@ def create_app() -> FastAPI:
             .order_by(User.display_name.asc())
             .limit(20)
         ).all()
-        return [
-            FriendUser(
-                id=user.id,
-                username=user.username,
-                display_name=user.display_name,
-                avatar_url=user.avatar_url,
-                is_friend=user.id in friend_ids,
+        results = []
+        for user in users:
+            if user.id in friend_ids:
+                fs = "accepted"
+            elif user.id in pending_outgoing:
+                fs = "pending_outgoing"
+            elif user.id in pending_incoming:
+                fs = "pending_incoming"
+            else:
+                fs = "none"
+            results.append(
+                FriendUser(
+                    id=user.id,
+                    username=user.username,
+                    display_name=user.display_name,
+                    avatar_url=user.avatar_url,
+                    is_friend=user.id in friend_ids,
+                    friendship_status=fs,
+                )
             )
-            for user in users
-        ]
+        return results
 
     @app.post("/api/friends/{friend_id}", response_model=FriendUser)
     def add_friend(
@@ -216,16 +230,43 @@ def create_app() -> FastAPI:
         existing = db.scalar(
             select(Friendship).where(Friendship.user_id == current_user.id, Friendship.friend_id == friend_id)
         )
-        if existing is None:
-            db.add(Friendship(user_id=current_user.id, friend_id=friend_id))
+        if existing is not None:
+            friendship_status = "accepted" if existing.status == "accepted" else "pending_outgoing"
+            return FriendUser(
+                id=friend.id,
+                username=friend.username,
+                display_name=friend.display_name,
+                avatar_url=friend.avatar_url,
+                is_friend=existing.status == "accepted",
+                friendship_status=friendship_status,
+            )
+
+        reverse = db.scalar(
+            select(Friendship).where(Friendship.user_id == friend_id, Friendship.friend_id == current_user.id)
+        )
+        if reverse is not None and reverse.status == "pending":
+            reverse.status = "accepted"
+            db.add(Friendship(user_id=current_user.id, friend_id=friend_id, status="accepted"))
             db.commit()
+            return FriendUser(
+                id=friend.id,
+                username=friend.username,
+                display_name=friend.display_name,
+                avatar_url=friend.avatar_url,
+                is_friend=True,
+                friendship_status="accepted",
+            )
+
+        db.add(Friendship(user_id=current_user.id, friend_id=friend_id, status="pending"))
+        db.commit()
 
         return FriendUser(
             id=friend.id,
             username=friend.username,
             display_name=friend.display_name,
             avatar_url=friend.avatar_url,
-            is_friend=True,
+            is_friend=False,
+            friendship_status="pending_outgoing",
         )
 
     @app.delete("/api/friends/{friend_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -239,7 +280,88 @@ def create_app() -> FastAPI:
         )
         if friendship is not None:
             db.delete(friendship)
-            db.commit()
+        reverse = db.scalar(
+            select(Friendship).where(Friendship.user_id == friend_id, Friendship.friend_id == current_user.id)
+        )
+        if reverse is not None:
+            db.delete(reverse)
+        db.commit()
+
+    @app.get("/api/friends/requests", response_model=list[FriendRequest])
+    def list_friend_requests(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[FriendRequest]:
+        pending = db.scalars(
+            select(Friendship)
+            .where(Friendship.friend_id == current_user.id, Friendship.status == "pending")
+            .options(joinedload(Friendship.user))
+            .order_by(Friendship.created_at.desc())
+        ).all()
+        return [
+            FriendRequest(
+                id=req.id,
+                from_user=FriendUser(
+                    id=req.user.id,
+                    username=req.user.username,
+                    display_name=req.user.display_name,
+                    avatar_url=req.user.avatar_url,
+                    is_friend=False,
+                    friendship_status="pending_incoming",
+                ),
+                created_at=_ensure_aware(req.created_at),
+            )
+            for req in pending
+        ]
+
+    @app.post("/api/friends/requests/{request_id}/accept", response_model=FriendUser)
+    def accept_friend_request(
+        request_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> FriendUser:
+        req = db.scalar(
+            select(Friendship)
+            .where(Friendship.id == request_id, Friendship.friend_id == current_user.id, Friendship.status == "pending")
+            .options(joinedload(Friendship.user))
+        )
+        if req is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Friend request not found.")
+        req.status = "accepted"
+        existing_reverse = db.scalar(
+            select(Friendship).where(
+                Friendship.user_id == current_user.id, Friendship.friend_id == req.user_id
+            )
+        )
+        if existing_reverse is None:
+            db.add(Friendship(user_id=current_user.id, friend_id=req.user_id, status="accepted"))
+        else:
+            existing_reverse.status = "accepted"
+        db.commit()
+        return FriendUser(
+            id=req.user.id,
+            username=req.user.username,
+            display_name=req.user.display_name,
+            avatar_url=req.user.avatar_url,
+            is_friend=True,
+            friendship_status="accepted",
+        )
+
+    @app.post("/api/friends/requests/{request_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
+    def reject_friend_request(
+        request_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        req = db.scalar(
+            select(Friendship).where(
+                Friendship.id == request_id, Friendship.friend_id == current_user.id, Friendship.status == "pending"
+            )
+        )
+        if req is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Friend request not found.")
+        db.delete(req)
+        db.commit()
 
     @app.get("/api/groups", response_model=list[GroupSummary])
     def list_groups(
@@ -384,8 +506,24 @@ def _token_response_for_user(user: User) -> TokenResponse:
     return TokenResponse(access_token=token, user=_serialize_user(user))
 
 
-def _friend_id_set(db: Session, user_id: int) -> set[int]:
-    rows = db.scalars(select(Friendship.friend_id).where(Friendship.user_id == user_id)).all()
+def _accepted_friend_id_set(db: Session, user_id: int) -> set[int]:
+    rows = db.scalars(
+        select(Friendship.friend_id).where(Friendship.user_id == user_id, Friendship.status == "accepted")
+    ).all()
+    return set(rows)
+
+
+def _pending_outgoing_set(db: Session, user_id: int) -> set[int]:
+    rows = db.scalars(
+        select(Friendship.friend_id).where(Friendship.user_id == user_id, Friendship.status == "pending")
+    ).all()
+    return set(rows)
+
+
+def _pending_incoming_set(db: Session, user_id: int) -> set[int]:
+    rows = db.scalars(
+        select(Friendship.user_id).where(Friendship.friend_id == user_id, Friendship.status == "pending")
+    ).all()
     return set(rows)
 
 
