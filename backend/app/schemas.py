@@ -9,7 +9,6 @@ from app.validation import (
     normalize_optional_text,
     normalize_required_text,
     validate_music_url,
-    validate_password_strength,
     validate_profile_image_url,
 )
 
@@ -44,7 +43,7 @@ class RegisterRequest(APIModel):
     email: EmailStr
     username: str = Field(min_length=3, max_length=24)
     display_name: str = Field(min_length=2, max_length=120)
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
     favorite_genre: str | None = Field(default=None, max_length=120)
     favorite_artist: str | None = Field(default=None, max_length=120)
 
@@ -71,11 +70,6 @@ class RegisterRequest(APIModel):
     def normalize_favorite_artist(cls, value: str | None) -> str | None:
         return normalize_optional_text(value, field_name="Favorite artist")
 
-    @field_validator("password")
-    @classmethod
-    def enforce_password_strength(cls, value: str) -> str:
-        return validate_password_strength(value)
-
 
 class LoginRequest(APIModel):
     identifier: str = Field(
@@ -83,7 +77,7 @@ class LoginRequest(APIModel):
         max_length=255,
         validation_alias=AliasChoices("identifier", "email"),
     )
-    password: str = Field(min_length=8, max_length=128)
+    password: str = Field(min_length=1, max_length=128)
 
     @field_validator("identifier")
     @classmethod

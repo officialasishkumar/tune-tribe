@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from urllib.parse import urlparse
 
 
@@ -34,16 +33,6 @@ def normalize_bio_text(value: str) -> str:
 
     _ensure_no_control_characters(cleaned, field_name="Bio")
     return cleaned
-
-
-def validate_password_strength(password: str) -> str:
-    if not re.search(r"[a-z]", password):
-        raise ValueError("Password must include at least one lowercase letter.")
-    if not re.search(r"[A-Z]", password):
-        raise ValueError("Password must include at least one uppercase letter.")
-    if not re.search(r"\d", password):
-        raise ValueError("Password must include at least one number.")
-    return password
 
 
 def validate_profile_image_url(value: str | None) -> str | None:

@@ -8,9 +8,8 @@ describe("getAuthErrorContent", () => {
     const error = new ApiError("Invalid email, username, or password.", { status: 401 });
 
     expect(getAuthErrorContent(error, "login")).toEqual({
-      title: "Your sign-in details didn't match",
-      description:
-        "Check your email or username and password, then try again. If you just created the account, sign in with the same username or email you registered.",
+      title: "Wrong email or password",
+      description: "",
     });
   });
 
@@ -18,9 +17,8 @@ describe("getAuthErrorContent", () => {
     const error = new ApiError("Network down", { status: 0 });
 
     expect(getAuthErrorContent(error, "login")).toEqual({
-      title: "TuneTribe is unreachable",
-      description:
-        "Check your internet connection or make sure the backend server is running, then try again.",
+      title: "Can't reach TuneTribe",
+      description: "Check connection or backend.",
     });
   });
 
@@ -31,8 +29,8 @@ describe("getAuthErrorContent", () => {
     });
 
     expect(getAuthErrorContent(error, "register")).toEqual({
-      title: "Enter a valid email address",
-      description: "Fix the email field, then try creating your account again.",
+      title: "Invalid email",
+      description: "",
     });
   });
 });

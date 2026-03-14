@@ -57,16 +57,16 @@ def test_login_request_accepts_identifier_or_email_payload() -> None:
     assert email_payload.identifier == "alex@example.com"
 
 
-def test_register_request_rejects_weak_passwords() -> None:
-    with pytest.raises(ValidationError, match="lowercase"):
-        RegisterRequest.model_validate(
-            {
-                "email": "alex@example.com",
-                "username": "alex_user",
-                "displayName": "Alex Rivera",
-                "password": "ALLCAPS123",
-            }
-        )
+def test_register_request_accepts_any_non_empty_password() -> None:
+    payload = RegisterRequest.model_validate(
+        {
+            "email": "alex@example.com",
+            "username": "alex_user",
+            "displayName": "Alex Rivera",
+            "password": "short",
+        }
+    )
+    assert payload.password == "short"
 
 
 def test_profile_and_track_urls_reject_unsafe_schemes() -> None:

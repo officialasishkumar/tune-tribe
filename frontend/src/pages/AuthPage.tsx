@@ -5,7 +5,7 @@ import { Disc3, ArrowRight, Mail, Lock, User, Music, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { getAuthErrorContent, type AuthErrorContent } from "@/lib/auth-errors";
+import { getAuthErrorContent } from "@/lib/auth-errors";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import type { GlobalStatsResponse } from "@/lib/types";
@@ -21,8 +21,7 @@ const AuthPage = () => {
   const [favoriteArtist, setFavoriteArtist] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [stats, setStats] = useState<GlobalStatsResponse | null>(null);
-  const [authError, setAuthError] = useState<AuthErrorContent | null>(null);
-  
+
   const navigate = useNavigate();
   const { isAuthenticated, setSession } = useAuth();
 
@@ -30,17 +29,12 @@ const AuthPage = () => {
     api.getGlobalStats().then(setStats).catch(console.error);
   }, []);
 
-  useEffect(() => {
-    setAuthError(null);
-  }, [isLogin]);
-
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError(null);
     setIsSubmitting(true);
 
     try {
@@ -59,7 +53,8 @@ const AuthPage = () => {
       toast.success(isLogin ? "Welcome back!" : "Account created");
       navigate("/dashboard");
     } catch (error) {
-      setAuthError(getAuthErrorContent(error, isLogin ? "login" : "register"));
+      const content = getAuthErrorContent(error, isLogin ? "login" : "register");
+      toast.error(content.title, content.description ? { description: content.description } : undefined);
     } finally {
       setIsSubmitting(false);
     }
@@ -137,10 +132,7 @@ const AuthPage = () => {
                     type="text"
                     placeholder="Name"
                     value={displayName}
-                    onChange={(e) => {
-                      setDisplayName(e.target.value);
-                      setAuthError(null);
-                    }}
+                    onChange={(e) => setDisplayName(e.target.value)}
                     className="pl-11 h-12 text-base"
                     required
                   />
@@ -151,10 +143,7 @@ const AuthPage = () => {
                     type="text"
                     placeholder="Username"
                     value={username}
-                    onChange={(e) => {
-                      setUsername(e.target.value);
-                      setAuthError(null);
-                    }}
+                    onChange={(e) => setUsername(e.target.value)}
                     className="pl-11 h-12 text-base"
                     required
                   />
@@ -165,10 +154,7 @@ const AuthPage = () => {
                     type="text"
                     placeholder="Favorite Genre (Optional)"
                     value={favoriteGenre}
-                    onChange={(e) => {
-                      setFavoriteGenre(e.target.value);
-                      setAuthError(null);
-                    }}
+                    onChange={(e) => setFavoriteGenre(e.target.value)}
                     className="pl-11 h-12 text-base"
                   />
                 </div>
@@ -178,10 +164,7 @@ const AuthPage = () => {
                     type="text"
                     placeholder="Favorite Artist (Optional)"
                     value={favoriteArtist}
-                    onChange={(e) => {
-                      setFavoriteArtist(e.target.value);
-                      setAuthError(null);
-                    }}
+                    onChange={(e) => setFavoriteArtist(e.target.value)}
                     className="pl-11 h-12 text-base"
                   />
                 </div>
@@ -194,10 +177,7 @@ const AuthPage = () => {
                   type="text"
                   placeholder="Email or username"
                   value={identifier}
-                  onChange={(e) => {
-                    setIdentifier(e.target.value);
-                    setAuthError(null);
-                  }}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="pl-11 h-12 text-base"
                   required
                 />
@@ -209,10 +189,7 @@ const AuthPage = () => {
                   type="email"
                   placeholder="Email"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setAuthError(null);
-                  }}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="pl-11 h-12 text-base"
                   required
                 />
@@ -224,23 +201,11 @@ const AuthPage = () => {
                 type="password"
                 placeholder="Password"
                 value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setAuthError(null);
-                }}
+                onChange={(e) => setPassword(e.target.value)}
                 className="pl-11 h-12 text-base"
                 required
               />
             </div>
-            {authError && (
-              <div
-                role="alert"
-                className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-left"
-              >
-                <p className="text-sm font-semibold text-destructive">{authError.title}</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">{authError.description}</p>
-              </div>
-            )}
             <Button type="submit" className="w-full h-12 text-base font-semibold gap-2 mt-2" disabled={isSubmitting}>
               {isSubmitting ? "Please wait" : isLogin ? "Sign in" : "Create account"}
               <ArrowRight className="w-5 h-5" />
