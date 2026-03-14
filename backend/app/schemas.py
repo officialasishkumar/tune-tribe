@@ -4,6 +4,15 @@ from datetime import datetime
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, EmailStr, Field, field_validator
 
+from app.validation import (
+    normalize_bio_text,
+    normalize_optional_text,
+    normalize_required_text,
+    validate_music_url,
+    validate_password_strength,
+    validate_profile_image_url,
+)
+
 
 def to_camel(field_name: str) -> str:
     parts = field_name.split("_")
@@ -47,6 +56,26 @@ class RegisterRequest(APIModel):
             raise ValueError("Username may contain only letters, numbers, and underscores.")
         return cleaned
 
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value: str) -> str:
+        return normalize_required_text(value, field_name="Display name")
+
+    @field_validator("favorite_genre")
+    @classmethod
+    def normalize_favorite_genre(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value, field_name="Favorite genre")
+
+    @field_validator("favorite_artist")
+    @classmethod
+    def normalize_favorite_artist(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value, field_name="Favorite artist")
+
+    @field_validator("password")
+    @classmethod
+    def enforce_password_strength(cls, value: str) -> str:
+        return validate_password_strength(value)
+
 
 class LoginRequest(APIModel):
     identifier: str = Field(
@@ -59,10 +88,7 @@ class LoginRequest(APIModel):
     @field_validator("identifier")
     @classmethod
     def normalize_identifier(cls, value: str) -> str:
-        cleaned = value.strip()
-        if not cleaned:
-            raise ValueError("Email or username is required.")
-        return cleaned
+        return normalize_required_text(value, field_name="Email or username")
 
 
 class ProfileUpdateRequest(APIModel):
@@ -71,6 +97,31 @@ class ProfileUpdateRequest(APIModel):
     favorite_genre: str | None = Field(default=None, max_length=120)
     favorite_artist: str | None = Field(default=None, max_length=120)
     avatar_url: str | None = Field(default=None, max_length=500)
+
+    @field_validator("display_name")
+    @classmethod
+    def normalize_display_name(cls, value: str) -> str:
+        return normalize_required_text(value, field_name="Display name")
+
+    @field_validator("bio")
+    @classmethod
+    def normalize_bio(cls, value: str) -> str:
+        return normalize_bio_text(value)
+
+    @field_validator("favorite_genre")
+    @classmethod
+    def normalize_favorite_genre(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value, field_name="Favorite genre")
+
+    @field_validator("favorite_artist")
+    @classmethod
+    def normalize_favorite_artist(cls, value: str | None) -> str | None:
+        return normalize_optional_text(value, field_name="Favorite artist")
+
+    @field_validator("avatar_url")
+    @classmethod
+    def normalize_avatar_url(cls, value: str | None) -> str | None:
+        return validate_profile_image_url(value)
 
 
 class FriendUser(APIModel):
@@ -85,6 +136,24 @@ class GroupCreateRequest(APIModel):
     name: str = Field(min_length=2, max_length=120)
     member_ids: list[int] = Field(default_factory=list)
 
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return normalize_required_text(value, field_name="Group name")
+
+    @field_validator("member_ids")
+    @classmethod
+    def normalize_member_ids(cls, value: list[int]) -> list[int]:
+        deduplicated: list[int] = []
+        seen: set[int] = set()
+        for member_id in value:
+            if member_id <= 0:
+                raise ValueError("Member IDs must be positive integers.")
+            if member_id not in seen:
+                seen.add(member_id)
+                deduplicated.append(member_id)
+        return deduplicated
+
 
 class GroupSummary(APIModel):
     id: int
@@ -97,6 +166,11 @@ class GroupSummary(APIModel):
 
 class TrackCreateRequest(APIModel):
     url: str = Field(min_length=8, max_length=1000)
+
+    @field_validator("url")
+    @classmethod
+    def normalize_url(cls, value: str) -> str:
+        return validate_music_url(value)
 
 
 class TrackSummary(APIModel):

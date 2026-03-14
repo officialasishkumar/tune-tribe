@@ -5,10 +5,12 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from typing import Any
-from urllib.parse import parse_qs, quote_plus, urlparse
+from urllib.parse import parse_qs, quote_plus, urljoin, urlparse
 
 import httpx
 from fastapi import HTTPException, status
+
+from app.config import get_settings
 
 
 ALLOWED_HOSTS = {
@@ -68,16 +70,26 @@ class ResolvedTrack:
 
 def ensure_supported_url(raw_url: str) -> tuple[str, str]:
     parsed = urlparse(raw_url.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A valid music URL is required.")
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="A valid HTTPS music URL is required.")
+    if parsed.username or parsed.password or parsed.fragment:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Music URLs must not include credentials or fragments.",
+        )
+    if parsed.port not in {None, 443}:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Music URLs must use the provider's standard HTTPS port.",
+        )
 
-    host = parsed.netloc.lower()
+    host = parsed.hostname.lower()
     if host.startswith("www."):
         host = host[4:]
 
     if host not in {h.removeprefix("www.") for h in ALLOWED_HOSTS}:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Unsupported music provider. Use Spotify, Apple Music, YouTube, or YouTube Music.",
         )
 
@@ -110,21 +122,21 @@ def extract_source_identifier(url: str, source: str) -> str | None:
 
 
 async def resolve_track(url: str) -> ResolvedTrack:
-    source = detect_source(url)
-    source_identifier = extract_source_identifier(url, source)
+    canonical_url, _ = ensure_supported_url(url)
+    source = detect_source(canonical_url)
+    source_identifier = extract_source_identifier(canonical_url, source)
 
     try:
         async with httpx.AsyncClient(
-            follow_redirects=True,
             timeout=10.0,
             headers={"User-Agent": "TuneTribe/1.0 (+https://tunetribe.local)"},
         ) as client:
             if source == TrackSource.SPOTIFY:
-                resolved = await _resolve_spotify(client, url, source_identifier)
+                resolved = await _resolve_spotify(client, canonical_url, source_identifier)
             elif source in {TrackSource.YOUTUBE, TrackSource.YOUTUBE_MUSIC}:
-                resolved = await _resolve_youtube(client, url, source_identifier, source)
+                resolved = await _resolve_youtube(client, canonical_url, source_identifier, source)
             else:
-                resolved = await _resolve_apple_music(client, url, source_identifier)
+                resolved = await _resolve_apple_music(client, canonical_url, source_identifier)
 
             enriched = await _enrich_with_itunes(client, resolved.title, resolved.artist)
             if enriched:
@@ -148,8 +160,7 @@ async def _resolve_spotify(client: httpx.AsyncClient, url: str, source_identifie
     oembed_response.raise_for_status()
     oembed = oembed_response.json()
 
-    page_response = await client.get(url)
-    page_response.raise_for_status()
+    page_response, resolved_url = await _fetch_provider_page(client, url)
     description = _extract_meta_content(page_response.text, "og:description")
     artist = "Unknown Artist"
     album = None
@@ -162,7 +173,7 @@ async def _resolve_spotify(client: httpx.AsyncClient, url: str, source_identifie
 
     return ResolvedTrack(
         source=TrackSource.SPOTIFY,
-        source_url=url,
+        source_url=resolved_url,
         source_identifier=source_identifier,
         title=oembed.get("title", "Unknown Track"),
         artist=artist,
@@ -202,11 +213,10 @@ async def _resolve_apple_music(
     url: str,
     source_identifier: str | None,
 ) -> ResolvedTrack:
-    response = await client.get(url)
-    response.raise_for_status()
+    response, resolved_url = await _fetch_provider_page(client, url)
     html_body = response.text
 
-    parsed = urlparse(url)
+    parsed = urlparse(resolved_url)
     path_parts = [part for part in parsed.path.split("/") if part]
     title_slug = path_parts[-2] if len(path_parts) >= 2 else "unknown-track"
     title = title_slug.replace("-", " ").strip() or "Unknown Track"
@@ -221,7 +231,7 @@ async def _resolve_apple_music(
 
     return ResolvedTrack(
         source=TrackSource.APPLE_MUSIC,
-        source_url=url,
+        source_url=resolved_url,
         source_identifier=source_identifier,
         title=title.title(),
         artist=artist,
@@ -284,3 +294,26 @@ def _extract_meta_content(html_body: str, property_name: str) -> str | None:
     if not match:
         return None
     return html.unescape(match.group(1)).strip()
+
+
+async def _fetch_provider_page(client: httpx.AsyncClient, url: str) -> tuple[httpx.Response, str]:
+    current_url, _ = ensure_supported_url(url)
+    max_redirects = get_settings().metadata_max_redirects
+
+    for _ in range(max_redirects + 1):
+        response = await client.get(current_url, follow_redirects=False)
+        if response.status_code not in {301, 302, 303, 307, 308}:
+            response.raise_for_status()
+            return response, current_url
+
+        location = response.headers.get("location")
+        if not location:
+            break
+
+        next_url = urljoin(current_url, location)
+        current_url, _ = ensure_supported_url(next_url)
+
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail="The music provider returned too many redirects. Please try another link.",
+    )
