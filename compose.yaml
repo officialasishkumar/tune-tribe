@@ -1,18 +1,19 @@
 services:
-  postgres:
-    image: postgres:16-alpine
+  mysql:
+    image: mysql:8.4
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-tunetribe}
-      POSTGRES_USER: ${POSTGRES_USER:-tunetribe}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your environment or .env file}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-tunetribe}
+      MYSQL_USER: ${MYSQL_USER:-tunetribe}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?set MYSQL_PASSWORD in your environment or .env file}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in your environment or .env file}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     restart: unless-stopped
 
   backend:
@@ -20,14 +21,14 @@ services:
       context: ./backend
     environment:
       TUNETRIBE_SECRET_KEY: ${TUNETRIBE_SECRET_KEY:?set TUNETRIBE_SECRET_KEY in your environment or .env file}
-      TUNETRIBE_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-tunetribe}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in your environment or .env file}@postgres:5432/${POSTGRES_DB:-tunetribe}
+      TUNETRIBE_DATABASE_URL: mysql+pymysql://${MYSQL_USER:-tunetribe}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in your environment or .env file}@mysql:3306/${MYSQL_DATABASE:-tunetribe}?charset=utf8mb4
       TUNETRIBE_CORS_ORIGINS: ${TUNETRIBE_CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       TUNETRIBE_ALLOWED_HOSTS: ${TUNETRIBE_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       TUNETRIBE_SEED_DEMO_DATA: ${TUNETRIBE_SEED_DEMO_DATA:-false}
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
     healthcheck:
       test:
@@ -56,4 +57,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres_data:
+  mysql_data:

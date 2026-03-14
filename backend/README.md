@@ -14,10 +14,11 @@ uvicorn app.main:app --reload --port 8000
 ## Environment
 
 Copy `.env.example` to `.env` if you want to override defaults.
+If you do nothing, local development uses SQLite via the default `TUNETRIBE_DATABASE_URL`.
 
 ## Database
 
-The backend schema is relational and is designed to run on PostgreSQL in production. Alembic migrations are applied automatically on startup by default, and the most important query paths now have composite indexes for:
+The backend schema is relational and is designed to run on MySQL in production. Alembic migrations are applied automatically on startup by default, and the most important query paths now have composite indexes for:
 
 - group track feeds
 - personal track history
