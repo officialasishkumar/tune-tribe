@@ -2,24 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Search,
-  Plus,
-  ChevronRight,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { GroupCard, type Group } from "@/components/GroupCard";
+import type { Group } from "@/components/GroupCard";
 import { TrackCard } from "@/components/TrackCard";
 import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
-import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
 import { toast } from "sonner";
 import { useAppContext } from "@/lib/app-context";
+import { DashboardSidebar } from "./Dashboard/DashboardSidebar";
+import { DashboardAnalytics } from "./Dashboard/DashboardAnalytics";
 
 const Dashboard = () => {
   const { activeGroup, setActiveGroup, setShowCreateGroup } = useAppContext();
@@ -138,39 +134,15 @@ const Dashboard = () => {
 
   return (
     <div className="flex flex-1 w-full">
-      <aside className="hidden md:flex md:w-64 lg:w-72 flex-col h-[calc(100vh-56px)] sticky top-14">
-        <div className="p-3 space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search groups..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm border-0 bg-secondary shadow-none"
-            />
-          </div>
-          <Button variant="outline" size="sm" className="w-full h-9 text-sm gap-1.5" onClick={() => setShowCreateGroup(true)}>
-            <Plus className="w-4 h-4" />
-            Create Group
-          </Button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-          <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground px-3 py-2 block">
-            Your Tribes ({filteredGroups.length})
-          </span>
-          {filteredGroups.map((group, index) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              isActive={activeGroup === group.id}
-              onClick={() => setActiveGroup(Number(group.id))}
-              onDelete={() => setGroupToDelete(group)}
-              index={index}
-            />
-          ))}
-        </div>
-      </aside>
+      <DashboardSidebar
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setShowCreateGroup={setShowCreateGroup}
+        filteredGroups={filteredGroups}
+        activeGroup={activeGroup}
+        setActiveGroup={setActiveGroup}
+        setGroupToDelete={setGroupToDelete}
+      />
 
       <main className="flex-1 min-w-0 pb-14 md:pb-0">
         <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
@@ -233,52 +205,13 @@ const Dashboard = () => {
         </div>
       </main>
 
-      <aside className="hidden lg:block w-80 xl:w-96 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto border-l bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-secondary/20">
-        <div className="p-6 space-y-8">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Quick Stats</h2>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="This week" value={String(weeklyTotal)} />
-              <StatCard label="Members" value={String(activeGroupSummary?.memberCount ?? 0)} />
-              <StatCard label="Top genre" value={topGenre} />
-              <StatCard label="Top source" value={topSource} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Active Times</h2>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-            <div className="p-5 rounded-xl bg-card border shadow-sm">
-              <WeeklyActivity data={chartData?.weeklyActivity ?? []} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Genre Mix</h2>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-            <div className="p-5 rounded-xl bg-card border shadow-sm">
-              <GenreDistribution data={chartData?.genreDistribution ?? []} />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Source Loyalty</h2>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-            <div className="p-5 rounded-xl bg-card border shadow-sm">
-              <SourceLoyalty data={chartData?.sourceLoyalty ?? []} />
-            </div>
-          </div>
-        </div>
-      </aside>
+      <DashboardAnalytics
+        weeklyTotal={weeklyTotal}
+        memberCount={activeGroupSummary?.memberCount ?? 0}
+        topGenre={topGenre}
+        topSource={topSource}
+        chartData={chartData}
+      />
 
       <AnimatePresence>
         {selectedTrack && <TrackDetailsModal track={selectedTrack} onClose={() => setSelectedTrack(null)} />}

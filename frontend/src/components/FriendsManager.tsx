@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Bell, Search, X, Check, UserPlus, Clock, UserX, AlertTriangle } from "lucide-react";
+import { Users, Bell, Search, X, AlertTriangle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import { formatRelativeTime } from "@/lib/format";
-import type { Friend } from "./FriendsSearch";
+import type { Friend } from "@/lib/types";
+import { FriendsList } from "./FriendsManager/FriendsList";
+import { FriendRequests } from "./FriendsManager/FriendRequests";
+import { SearchUsers } from "./FriendsManager/SearchUsers";
 
 type FriendsManagerProps = {
   onClose: () => void;
@@ -88,7 +89,7 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
       void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
       void queryClient.invalidateQueries({ queryKey: ["friends"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
-      void queryClient.invalidateQueries({ queryKey: ["groups"] }); // Invalidate groups because they might be removed from shared groups
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
     },
     onError: () => {
       toast.error("Failed to remove friend");
@@ -183,140 +184,32 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                   transition={{ duration: 0.15 }}
                 >
                   {activeTab === "friends" && (
-                    friends.length === 0 ? (
-                      <div className="px-4 py-10 text-center">
-                        <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-base text-muted-foreground">You don't have any friends yet</p>
-                        <Button variant="link" onClick={() => setActiveTab("search")} className="mt-2 text-primary">
-                          Find friends
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="py-1">
-                        {friends.map((friend) => (
-                          <div key={friend.id} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                                <span className="text-sm font-medium text-primary">{friend.displayName.charAt(0)}</span>
-                              </div>
-                              <div>
-                                <span className="text-base font-medium text-foreground">{friend.displayName}</span>
-                                <span className="block text-sm text-muted-foreground">@{friend.username}</span>
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 text-sm text-muted-foreground hover:text-destructive gap-1.5"
-                              onClick={() => setFriendToRemove(friend)}
-                            >
-                              <UserX className="w-4 h-4" /> Remove
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )
+                    <FriendsList
+                      friends={friends}
+                      onRemove={setFriendToRemove}
+                      onSearch={() => setActiveTab("search")}
+                    />
                   )}
 
                   {activeTab === "requests" && (
-                    requests.length === 0 ? (
-                      <div className="px-4 py-10 text-center">
-                        <UserPlus className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-                        <p className="text-base text-muted-foreground">No pending requests</p>
-                        <p className="text-sm text-muted-foreground/70 mt-1">When someone sends you a request, it will appear here.</p>
-                      </div>
-                    ) : (
-                      <div className="py-1">
-                        {requests.map((req) => (
-                          <div key={req.id} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                                <span className="text-sm font-medium text-primary">{req.fromUser.displayName.charAt(0)}</span>
-                              </div>
-                              <div>
-                                <span className="text-base font-medium text-foreground">{req.fromUser.displayName}</span>
-                                <span className="block text-sm text-muted-foreground">@{req.fromUser.username} · {formatRelativeTime(req.createdAt)}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="h-8 text-sm gap-1"
-                                onClick={() => acceptMutation.mutate(req.id)}
-                                disabled={acceptMutation.isPending}
-                              >
-                                <Check className="w-3.5 h-3.5" /> Accept
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                onClick={() => rejectMutation.mutate(req.id)}
-                                disabled={rejectMutation.isPending}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )
+                    <FriendRequests
+                      requests={requests}
+                      onAccept={(id) => acceptMutation.mutate(id)}
+                      isAccepting={acceptMutation.isPending}
+                      onReject={(id) => rejectMutation.mutate(id)}
+                      isRejecting={rejectMutation.isPending}
+                    />
                   )}
 
                   {activeTab === "search" && (
-                    <div>
-                      <div className="p-3 border-b">
-                        <div className="relative">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-                            autoFocus
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by @username..."
-                            className="pl-9 bg-secondary/30 border-secondary focus-visible:ring-1"
-                          />
-                        </div>
-                      </div>
-                      <div className="py-1">
-                        {searchResults.length === 0 ? (
-                          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                            {searchQuery ? "No users found" : "Type to search..."}
-                          </div>
-                        ) : (
-                          searchResults.map((user) => (
-                            <div key={user.id} className="flex items-center justify-between px-4 py-3 hover:bg-secondary/50 transition-colors">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-primary">{user.displayName.charAt(0)}</span>
-                                </div>
-                                <div>
-                                  <span className="text-base font-medium text-foreground">{user.displayName}</span>
-                                  <span className="block text-sm font-mono text-muted-foreground">@{user.username}</span>
-                                </div>
-                              </div>
-                              {user.friendshipStatus === "accepted" ? (
-                                <Button variant="secondary" size="sm" className="h-8 text-sm gap-1.5" disabled>
-                                  <Check className="w-3.5 h-3.5" /> Friends
-                                </Button>
-                              ) : user.friendshipStatus === "pending_outgoing" ? (
-                                <Button variant="secondary" size="sm" className="h-8 text-sm gap-1.5 opacity-70" disabled>
-                                  <Clock className="w-3.5 h-3.5" /> Pending
-                                </Button>
-                              ) : user.friendshipStatus === "pending_incoming" ? (
-                                <Button variant="default" size="sm" className="h-8 text-sm gap-1.5" onClick={() => acceptMutation.mutate(requests.find(r => r.fromUser.id === user.id)?.id || 0)}>
-                                  <Check className="w-3.5 h-3.5" /> Accept
-                                </Button>
-                              ) : (
-                                <Button variant="outline" size="sm" className="h-8 text-sm gap-1.5" onClick={() => addFriendMutation.mutate(user.id)}>
-                                  <UserPlus className="w-3.5 h-3.5" /> Add
-                                </Button>
-                              )}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    <SearchUsers
+                      searchQuery={searchQuery}
+                      setSearchQuery={setSearchQuery}
+                      searchResults={searchResults}
+                      requests={requests}
+                      onAddFriend={(id) => addFriendMutation.mutate(id)}
+                      onAccept={(id) => acceptMutation.mutate(id)}
+                    />
                   )}
                 </motion.div>
               </AnimatePresence>

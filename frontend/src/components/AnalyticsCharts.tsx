@@ -1,6 +1,6 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, AreaChart, Area } from "recharts";
 
-import type { DailyPoint, DistributionPoint, SourcePoint } from "@/lib/types";
+import type { DailyPoint, DistributionPoint, SourcePoint, MonthlyPoint } from "@/lib/types";
 
 const chartColors = [
   "hsl(221.2, 83.2%, 53.3%)",
@@ -142,3 +142,45 @@ export const StatCard = ({ label, value, change }: { label: string; value: strin
     </div>
   </div>
 );
+
+export const MonthlyVolumeChart = ({ data }: { data: MonthlyPoint[] }) => {
+  if (!data?.length) {
+    return (
+      <div>
+        <h3 className="text-base font-semibold mb-6">Monthly Volume</h3>
+        <div className="text-sm text-muted-foreground">No volume data yet.</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <h3 className="text-base font-semibold mb-6">Monthly Volume</h3>
+      <div className="h-[300px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="colorTracks" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} dy={10} />
+            <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} width={35} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(var(--card))",
+                borderColor: "hsl(var(--border))",
+                borderRadius: "12px",
+                boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+              }}
+            />
+            <Area type="monotone" dataKey="tracks" stroke="hsl(var(--primary))" strokeWidth={3} fill="url(#colorTracks)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </>
+  );
+};
+

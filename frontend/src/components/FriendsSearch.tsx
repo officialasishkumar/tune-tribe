@@ -6,15 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-
-export type Friend = {
-  id: number;
-  username: string;
-  displayName: string;
-  avatarUrl?: string;
-  isFriend: boolean;
-  friendshipStatus: "none" | "pending_outgoing" | "pending_incoming" | "accepted";
-};
+import type { Friend } from "@/lib/types";
 
 type FriendsSearchProps = {
   onClose: () => void;
