@@ -13,11 +13,13 @@ RUN addgroup --system tunetribe && adduser --system --ingroup tunetribe tunetrib
 
 COPY pyproject.toml README.md alembic.ini ./
 COPY requirements.lock ./
+COPY start.sh ./
 COPY alembic ./alembic
 COPY app ./app
 
 RUN pip install --upgrade pip \
-    && pip install --constraint requirements.lock .
+    && pip install --constraint requirements.lock . \
+    && chmod +x /app/start.sh
 
 RUN chown -R tunetribe:tunetribe /app
 
@@ -25,4 +27,4 @@ USER tunetribe
 
 EXPOSE 8000
 
-CMD ["/bin/sh", "-c", "python -m app.bootstrap && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --workers ${TUNETRIBE_WEB_CONCURRENCY:-2}"]
+CMD ["/app/start.sh"]

@@ -1,11 +1,11 @@
 # TuneTribe
 
-TuneTribe is now organized as a frontend/backend workspace:
+TuneTribe is a two-part workspace:
 
 - `frontend/`: React + Vite client
-- `backend/`: FastAPI API with auth, groups, friends, tracks, analytics, and metadata enrichment
+- `backend/`: FastAPI API for auth, friends, groups, tracks, analytics, and metadata enrichment
 
-## Local development
+## Quick Start
 
 Frontend:
 
@@ -25,55 +25,60 @@ uvicorn app.main:app --reload --port 8000
 ```
 
 The frontend proxies `/api` to `http://127.0.0.1:8000` in development.
-The backend uses SQLite by default for local development unless you override `TUNETRIBE_DATABASE_URL`.
-The production container stack now targets Python 3.14, Node.js 24, Nginx 1.28, and MySQL 8.4.
+The backend uses SQLite by default for local work.
+The production baseline in this repo is MySQL 8.4 via `compose.yaml`.
 
-## CI/CD
+## Verification
 
-GitHub Actions now provides:
+Frontend:
 
-- `CI`: frontend lint, typecheck, tests, and production build plus backend pytest on pushes to `main` and on pull requests.
-- `Docker`: build validation for frontend and backend images on pull requests and pushes to `main`, with GHCR publishing on version tags like `v1.0.0`.
-- `Dependency Review`: pull-request checks for newly introduced dependency risk.
+```bash
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend test -- --run
+npm --prefix frontend run build
+npm --prefix frontend audit --omit=dev --audit-level=high
+```
 
-## Production notes
+Backend:
 
-- MySQL is the production database baseline for TuneTribe. The app relies on relational joins across users, friendships, groups, memberships, and track shares, and the provided deployment stack is configured for MySQL 8.
-- Set `TUNETRIBE_SECRET_KEY` to a strong random secret and do not commit real secrets into the repo.
-- Set `TUNETRIBE_ALLOWED_HOSTS` and `TUNETRIBE_CORS_ORIGINS` for your deployed domains.
-- Disable demo data with `TUNETRIBE_SEED_DEMO_DATA=false`.
-- The production app now validates that the secret key is non-default, demo seeding is disabled, and SQLite is not used when `TUNETRIBE_ENVIRONMENT=production`.
-- Backend container startup now runs database bootstrap once before Uvicorn starts, which avoids per-worker migration and seeding races.
-- `TUNETRIBE_WEB_CONCURRENCY` controls backend worker count in the production container and defaults to `2`.
-- Set `TUNETRIBE_DATABASE_URL` to your managed MySQL instance if you are not using the bundled container.
-- The provided Dockerfiles and `compose.yaml` now run a MySQL-backed stack with persistent storage, health checks, and startup gating suitable as a production baseline.
+```bash
+cd backend
+./.venv/bin/ruff check app tests
+./.venv/bin/pytest
+./.venv/bin/python -m pip check
+./.venv/bin/pip-audit
+```
 
-## Database structure
+## Security And Production
 
-TuneTribe uses a relational schema:
+- Set `TUNETRIBE_SECRET_KEY` to a strong secret that is at least 32 characters long.
+- Set `TUNETRIBE_ALLOWED_HOSTS` and `TUNETRIBE_CORS_ORIGINS` for the domains you actually serve.
+- Keep `TUNETRIBE_SEED_DEMO_DATA=false` in production.
+- Only set `TUNETRIBE_FORWARDED_ALLOW_IPS` if the backend is behind a trusted reverse proxy.
+- Login attempts are rate-limited, JWTs now carry issuer and token-type claims, API responses send defensive security headers, and user-supplied avatar/music URLs are validated more strictly.
 
-- `users`: account identity, hashed password, profile metadata
-- `friendships`: directed friend relationships from one user to another
-- `groups`: group ownership records
-- `group_memberships`: membership rows linking users to groups, including role
-- `track_shares`: shared music entries linked to both a group and the user who shared them
-
-Auth flow:
-
-1. `POST /api/auth/register` validates uniqueness, stores the user with an Argon2 password hash, creates a personal group, and returns a JWT.
-2. `POST /api/auth/login` verifies the password hash and returns a JWT.
-3. `GET /api/auth/me` resolves the bearer token back to the current user.
-4. All group, friendship, profile, and track routes use that authenticated user context.
-
-For containerized deployment, copy [`.env.example`](/home/ashish/asish_workspace/projects/tune-tribe/.env.example) to `.env`, set strong secrets, and run:
+To run the container stack:
 
 ```bash
 docker compose up --build
 ```
 
-## Demo account
+Copy `.env.example` to `.env` first and replace the placeholder secrets.
 
-If demo seeding is enabled, you can sign in with:
+## CI/CD
+
+GitHub Actions runs:
+
+- frontend lint, typecheck, tests, production build, and production dependency audit
+- backend Ruff lint, `pip check`, pytest, and `pip-audit`
+- frontend and backend Docker build validation, with GHCR publishing on version tags
+
+The workflow layout follows the same general pattern used by projects like FastAPI, Pydantic, and Django: separate verification stages, minimal workflow permissions, and explicit dependency checks.
+
+## Demo Account
+
+If demo seeding is enabled, sign in with:
 
 - Email: `alex@example.com`
 - Password: `TuneTribe!123`

@@ -1,4 +1,7 @@
-from app.schemas import GroupCreateRequest, LoginRequest, ProfileUpdateRequest, RegisterRequest
+import pytest
+from pydantic import ValidationError
+
+from app.schemas import GroupCreateRequest, LoginRequest, ProfileUpdateRequest, RegisterRequest, TrackCreateRequest
 
 
 def test_register_request_accepts_frontend_camel_case_payload() -> None:
@@ -52,3 +55,33 @@ def test_login_request_accepts_identifier_or_email_payload() -> None:
 
     assert identifier_payload.identifier == "Alex_User"
     assert email_payload.identifier == "alex@example.com"
+
+
+def test_register_request_rejects_weak_passwords() -> None:
+    with pytest.raises(ValidationError, match="lowercase"):
+        RegisterRequest.model_validate(
+            {
+                "email": "alex@example.com",
+                "username": "alex_user",
+                "displayName": "Alex Rivera",
+                "password": "ALLCAPS123",
+            }
+        )
+
+
+def test_profile_and_track_urls_reject_unsafe_schemes() -> None:
+    with pytest.raises(ValidationError, match="HTTPS"):
+        ProfileUpdateRequest.model_validate(
+            {
+                "displayName": "Alex Rivera",
+                "bio": "Updated bio",
+                "avatarUrl": "http://example.com/avatar.png",
+            }
+        )
+
+    with pytest.raises(ValidationError, match="HTTPS"):
+        TrackCreateRequest.model_validate(
+            {
+                "url": "http://open.spotify.com/track/example",
+            }
+        )

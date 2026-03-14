@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,6 +15,7 @@ from app.bootstrap import run_startup_tasks
 from app.config import get_settings
 from app.db import engine, get_db
 from app.deps import get_current_user
+from app.http import install_security_middleware
 from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
     AnalyticsResponse,
@@ -34,6 +36,10 @@ from app.security import create_access_token, hash_password, verify_password
 from app.services.analytics import build_analytics, filter_tracks_by_window
 from app.services.auth import find_user_by_identifier
 from app.services.metadata import SOURCE_LABELS, resolve_track
+from app.services.rate_limit import get_auth_rate_limiter
+
+
+AnalyticsWindow = Literal["7d", "30d", "90d", "all"]
 
 
 def create_app() -> FastAPI:
@@ -46,6 +52,7 @@ def create_app() -> FastAPI:
         yield
 
     app = FastAPI(title=settings.app_name, lifespan=lifespan)
+    install_security_middleware(app, environment=settings.environment)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -53,7 +60,7 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts or ["*"])
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -103,20 +110,40 @@ def create_app() -> FastAPI:
         db.add(personal_group)
         db.flush()
         db.add(GroupMembership(group_id=personal_group.id, user_id=user.id, role="owner"))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with those credentials already exists.",
+            ) from exc
+
         db.refresh(user)
 
         return _token_response_for_user(user)
 
     @app.post("/api/auth/login", response_model=TokenResponse)
-    def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+        limiter = get_auth_rate_limiter()
+        rate_limit_key = _build_auth_rate_limit_key(request, payload.identifier)
+        rate_limit_decision = limiter.check(rate_limit_key)
+        if not rate_limit_decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts. Please wait and try again.",
+                headers={"Retry-After": str(rate_limit_decision.retry_after_seconds)},
+            )
+
         user = find_user_by_identifier(db, payload.identifier)
         if user is None or not verify_password(payload.password, user.password_hash):
+            limiter.record_failure(rate_limit_key)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email, username, or password.",
             )
 
+        limiter.clear(rate_limit_key)
         return _token_response_for_user(user)
 
     @app.get("/api/auth/me", response_model=UserSummary)
@@ -133,10 +160,10 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> UserSummary:
-        current_user.display_name = payload.display_name.strip()
-        current_user.bio = payload.bio.strip()
-        current_user.favorite_genre = payload.favorite_genre.strip() if payload.favorite_genre else None
-        current_user.favorite_artist = payload.favorite_artist.strip() if payload.favorite_artist else None
+        current_user.display_name = payload.display_name
+        current_user.bio = payload.bio
+        current_user.favorite_genre = payload.favorite_genre
+        current_user.favorite_artist = payload.favorite_artist
         current_user.avatar_url = payload.avatar_url
         db.add(current_user)
         db.commit()
@@ -149,6 +176,7 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> list[FriendUser]:
+        cleaned_query = q.strip()
         friend_ids = _accepted_friend_id_set(db, current_user.id)
         pending_outgoing = _pending_outgoing_set(db, current_user.id)
         pending_incoming = _pending_incoming_set(db, current_user.id)
@@ -157,8 +185,8 @@ def create_app() -> FastAPI:
             .where(User.id != current_user.id)
             .where(
                 or_(
-                    User.username.ilike(f"%{q}%"),
-                    User.display_name.ilike(f"%{q}%"),
+                    User.username.ilike(f"%{cleaned_query}%"),
+                    User.display_name.ilike(f"%{cleaned_query}%"),
                 )
             )
             .order_by(User.display_name.asc())
@@ -359,7 +387,7 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> GroupSummary:
-        group = Group(name=payload.name.strip(), owner_id=current_user.id)
+        group = Group(name=payload.name, owner_id=current_user.id)
         db.add(group)
         db.flush()
         db.add(GroupMembership(group_id=group.id, user_id=current_user.id, role="owner"))
@@ -427,7 +455,7 @@ def create_app() -> FastAPI:
     @app.get("/api/groups/{group_id}/analytics", response_model=AnalyticsResponse)
     def group_analytics(
         group_id: int,
-        window: str = Query(default="30d"),
+        window: AnalyticsWindow = Query(default="30d"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> AnalyticsResponse:
@@ -442,7 +470,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/analytics/me", response_model=AnalyticsResponse)
     def personal_analytics(
-        window: str = Query(default="30d"),
+        window: AnalyticsWindow = Query(default="30d"),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> AnalyticsResponse:
@@ -545,3 +573,8 @@ def _ensure_aware(value: datetime) -> datetime:
     if value.tzinfo is not None:
         return value
     return value.replace(tzinfo=timezone.utc)
+
+
+def _build_auth_rate_limit_key(request: Request, identifier: str) -> str:
+    client_host = request.client.host if request.client is not None else "unknown"
+    return f"{client_host}:{identifier.strip().lower()}"
