@@ -58,7 +58,7 @@ const AnalyticsPage = () => {
   const analytics = analyticsQuery.data;
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20">
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
         <div className="flex items-center justify-between px-6 h-14">
           <div className="flex items-center gap-4">

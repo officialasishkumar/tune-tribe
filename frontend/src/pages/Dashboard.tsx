@@ -321,7 +321,7 @@ const Dashboard = () => {
           </div>
         </main>
 
-        <aside className="hidden lg:block w-80 xl:w-96 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto border-l bg-muted/10">
+        <aside className="hidden lg:block w-80 xl:w-96 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto border-l bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-secondary/20">
           <div className="p-6 space-y-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
