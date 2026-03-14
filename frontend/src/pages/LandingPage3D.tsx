@@ -1,5 +1,6 @@
-import React, { Suspense, Component, ReactNode } from "react";
-import { Canvas } from "@react-three/fiber";
+import React, { Suspense, Component, ReactNode, useRef, useState } from "react";
+import { Canvas, useFrame, GroupProps } from "@react-three/fiber";
+import * as THREE from "three";
 import { Float, Stars, Sparkles, OrbitControls, ContactShadows } from "@react-three/drei";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
@@ -26,28 +27,138 @@ class WebGLErrorBoundary extends Component<{children: ReactNode, fallback: React
   }
 }
 
-function FloatingShapes() {
+function VinylRecord(props: GroupProps & { scale?: number }) {
+  const [hovered, setHover] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * (hovered ? 2 : 0.5);
+    }
+  });
+
+  return (
+    <group {...props} ref={groupRef}
+      onPointerOver={() => setHover(true)}
+      onPointerOut={() => setHover(false)}
+      scale={hovered ? (props.scale || 1) * 1.1 : (props.scale || 1)}
+    >
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[1.5, 1.5, 0.05, 64]} />
+        <meshStandardMaterial color="#111" roughness={0.4} metalness={0.8} />
+      </mesh>
+
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.026, 0]}>
+        <ringGeometry args={[0.5, 1.4, 64]} />
+        <meshStandardMaterial color="#222" roughness={0.6} metalness={0.9} />
+      </mesh>
+
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.027, 0]}>
+        <cylinderGeometry args={[0.4, 0.4, 0.05, 32]} />
+        <meshStandardMaterial color="#ec4899" roughness={0.5} emissive={hovered ? "#ec4899" : "#000"} emissiveIntensity={0.8} />
+      </mesh>
+
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.028, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.06, 16]} />
+        <meshStandardMaterial color="#000" />
+      </mesh>
+    </group>
+  );
+}
+
+function EighthNote({ color = "#00ffff", ...props }: GroupProps & { color?: string, scale?: number }) {
+  const [hovered, setHover] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta;
+      groupRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 2) * 0.1;
+    }
+  });
+
+  return (
+    <group {...props} ref={groupRef}
+      onPointerOver={() => setHover(true)}
+      onPointerOut={() => setHover(false)}
+      scale={hovered ? (props.scale || 1) * 1.2 : (props.scale || 1)}
+    >
+      <mesh position={[-0.2, -0.4, 0]} rotation={[0, 0, Math.PI / 8]}>
+        <sphereGeometry args={[0.25, 32, 32]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+      <mesh position={[0, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 1, 16]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+      <mesh position={[0.2, 0.4, 0]} rotation={[0, 0, -Math.PI / 4]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.6, 16]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+    </group>
+  );
+}
+
+function BeamedNote({ color = "#ff00ff", ...props }: GroupProps & { color?: string, scale?: number }) {
+  const [hovered, setHover] = useState(false);
+  const groupRef = useRef<THREE.Group>(null);
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y -= delta * 0.8;
+      groupRef.current.position.y += Math.cos(state.clock.elapsedTime * 3) * 0.005;
+    }
+  });
+
+  return (
+    <group {...props} ref={groupRef}
+      onPointerOver={() => setHover(true)}
+      onPointerOut={() => setHover(false)}
+      scale={hovered ? (props.scale || 1) * 1.2 : (props.scale || 1)}
+    >
+      <mesh position={[-0.4, -0.4, 0]} rotation={[0, 0, Math.PI / 8]}>
+        <sphereGeometry args={[0.2, 32, 32]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+      <mesh position={[-0.25, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.8, 16]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+
+      <mesh position={[0.4, -0.4, 0]} rotation={[0, 0, Math.PI / 8]}>
+        <sphereGeometry args={[0.2, 32, 32]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+      <mesh position={[0.55, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 0.8, 16]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+
+      <mesh position={[0.15, 0.4, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.85, 16]} />
+        <meshStandardMaterial color={color} roughness={0.2} metalness={0.8} emissive={hovered ? color : "#000"} emissiveIntensity={hovered ? 0.8 : 0.2} />
+      </mesh>
+    </group>
+  );
+}
+
+function MusicalShapes() {
   return (
     <>
-      <Float speed={2} rotationIntensity={1.5} floatIntensity={2}>
-        <mesh position={[2, 1, -2]} scale={1.5}>
-          <torusKnotGeometry args={[1, 0.3, 128, 16]} />
-          <meshStandardMaterial color="#8b5cf6" roughness={0.1} metalness={0.8} />
-        </mesh>
+      <Float speed={2} rotationIntensity={0.5} floatIntensity={1.5}>
+        <VinylRecord position={[2, 0, -2]} scale={1.2} rotation={[0.5, -0.2, 0.2]} />
       </Float>
 
-      <Float speed={1.5} rotationIntensity={2} floatIntensity={1.5}>
-        <mesh position={[-3, -1, -3]} scale={1.2}>
-          <octahedronGeometry args={[1]} />
-          <meshStandardMaterial color="#ec4899" roughness={0.2} metalness={0.6} />
-        </mesh>
+      <Float speed={1.5} rotationIntensity={1} floatIntensity={2}>
+        <EighthNote position={[-3, 1, -1]} scale={0.8} rotation={[0.2, 0.5, -0.2]} color="#00ffff" />
+      </Float>
+
+      <Float speed={2.5} rotationIntensity={1.2} floatIntensity={1.8}>
+         <BeamedNote position={[-1.5, -2, 0]} scale={0.7} rotation={[-0.1, -0.4, 0.1]} color="#ff00ff" />
       </Float>
       
-      <Float speed={3} rotationIntensity={1} floatIntensity={2}>
-         <mesh position={[0, -2.5, -1]} scale={0.8}>
-           <icosahedronGeometry args={[1, 0]} />
-           <meshStandardMaterial color="#3b82f6" roughness={0.3} metalness={0.7} />
-         </mesh>
+      <Float speed={1.8} rotationIntensity={2} floatIntensity={1.2}>
+        <EighthNote position={[3, -1.5, -1]} scale={0.6} rotation={[-0.4, -0.8, 0.3]} color="#ff00aa" />
       </Float>
     </>
   );
@@ -59,7 +170,7 @@ function Scene() {
       <ambientLight intensity={0.5} />
       <directionalLight position={[10, 10, 5]} intensity={1} color="#ffffff" />
       <pointLight position={[-10, -10, -5]} intensity={0.5} color="#ec4899" />
-      <FloatingShapes />
+      <MusicalShapes />
       <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
       <Sparkles count={100} scale={12} size={4} speed={0.4} opacity={0.5} color="#8b5cf6" />
       <ContactShadows position={[0, -4, 0]} opacity={0.4} scale={20} blur={2} far={4} color="#000000" />
