@@ -11,22 +11,22 @@ pip install -e .[dev]
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Environment
+## Verify
 
-Copy `.env.example` to `.env` if you want to override defaults.
-If you do nothing, local development uses SQLite via the default `TUNETRIBE_DATABASE_URL`.
-Production container builds use the locked package set from `requirements.lock`.
+```bash
+./.venv/bin/ruff check app tests
+./.venv/bin/pytest
+./.venv/bin/python -m pip check
+./.venv/bin/pip-audit
+```
 
-## Database
+## Key Settings
 
-The backend schema is relational and is designed to run on MySQL in production. Alembic migrations are applied automatically on startup by default, and the most important query paths now have composite indexes for:
+- Local development defaults to SQLite.
+- Production requires MySQL, a non-default `TUNETRIBE_SECRET_KEY` that is at least 32 characters long, and demo seeding disabled.
+- `TUNETRIBE_AUTH_RATE_LIMIT_MAX_ATTEMPTS` and `TUNETRIBE_AUTH_RATE_LIMIT_WINDOW_SECONDS` control login throttling.
+- `TUNETRIBE_FORWARDED_ALLOW_IPS` should be left empty unless the app is behind a trusted reverse proxy.
 
-- group track feeds
-- personal track history
-- repeated-track analytics within a group
+## Container Startup
 
-## Production behavior
-
-- `TUNETRIBE_ENVIRONMENT=production` enables startup validation for secret keys, database choice, and demo seeding.
-- `python -m app.bootstrap` runs migrations and optional seeding once before the web workers start.
-- The production Docker image starts Uvicorn with `--workers ${TUNETRIBE_WEB_CONCURRENCY:-2}` and trusted proxy headers enabled.
+The production image runs `python -m app.bootstrap` before starting Uvicorn so migrations happen once per container start.
