@@ -5,11 +5,12 @@ from datetime import datetime, timezone
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import get_settings
-from app.db import get_db, init_db, SessionLocal
+from app.db import engine, get_db, init_db, SessionLocal
 from app.deps import get_current_user
 from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
@@ -53,7 +54,13 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        return {"status": "ok"}
+        try:
+            with engine.connect() as connection:
+                connection.exec_driver_sql("SELECT 1")
+        except SQLAlchemyError as exc:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable.") from exc
+
+        return {"status": "ok", "database": "ok"}
 
     @app.get("/api/stats", response_model=GlobalStatsResponse)
     def get_global_stats(db: Session = Depends(get_db)) -> GlobalStatsResponse:

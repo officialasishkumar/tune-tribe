@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -83,6 +83,11 @@ class GroupMembership(Base):
 
 class TrackShare(Base):
     __tablename__ = "track_shares"
+    __table_args__ = (
+        Index("ix_track_shares_group_shared_at", "group_id", "shared_at"),
+        Index("ix_track_shares_shared_by_shared_at", "shared_by_id", "shared_at"),
+        Index("ix_track_shares_group_signature", "group_id", "track_signature"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     group_id: Mapped[int] = mapped_column(ForeignKey("groups.id", ondelete="CASCADE"), index=True)

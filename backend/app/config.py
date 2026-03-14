@@ -14,6 +14,10 @@ class Settings(BaseSettings):
 
     app_name: str = "TuneTribe API"
     database_url: str = "sqlite:///./tunetribe.db"
+    database_auto_migrate: bool = True
+    database_pool_size: int = 10
+    database_max_overflow: int = 20
+    database_pool_recycle_seconds: int = 1800
     secret_key: str = "change-this-secret-key-before-production-please"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 43200
