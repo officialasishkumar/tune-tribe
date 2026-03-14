@@ -50,6 +50,14 @@ const Dashboard = () => {
     setSelectedTrack(null);
   }, [activeGroup]);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && groupToDelete) setGroupToDelete(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [groupToDelete]);
+
   const tracksQuery = useQuery({
     queryKey: ["group", activeGroup, "tracks"],
     queryFn: () => api.listGroupTracks(activeGroup as number),

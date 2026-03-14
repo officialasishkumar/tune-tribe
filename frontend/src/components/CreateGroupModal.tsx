@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { X, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,14 @@ export const CreateGroupModal = ({ onClose, onCreate }: CreateGroupModalProps) =
   const [members, setMembers] = useState<Friend[]>([]);
   const [showFriendSearch, setShowFriendSearch] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !showFriendSearch) onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, showFriendSearch]);
 
   const handleAddMember = (friend: Friend) => {
     if (members.find((m) => m.id === friend.id)) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   CalendarDays,
@@ -40,6 +40,14 @@ const formatDuration = (durationMs?: number | null) => {
 
 export const TrackDetailsModal = ({ track, onClose }: TrackDetailsModalProps) => {
   const [hasCopied, setHasCopied] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const handleCopy = async () => {
     try {

@@ -1,4 +1,4 @@
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Search, UserPlus, UserCheck, X, Users, Clock, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -26,6 +26,17 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const { data: users = [] } = useQuery({
     queryKey: ["friends", deferredQuery],

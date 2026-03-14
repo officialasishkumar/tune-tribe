@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Users, Bell, Search, X, Check, UserPlus, Clock, UserX, AlertTriangle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +19,14 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
   const [searchQuery, setSearchQuery] = useState("");
   const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const { data: friends = [] } = useQuery({
     queryKey: ["friendsList"],
