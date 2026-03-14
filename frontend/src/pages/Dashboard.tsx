@@ -12,6 +12,7 @@ import {
   Sun,
   UserCircle,
   UserPlus,
+  Bell,
   ChevronRight,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
 import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
 import { FriendsSearch } from "@/components/FriendsSearch";
+import { FriendRequestsPanel } from "@/components/FriendRequestsPanel";
 import { CreateGroupModal } from "@/components/CreateGroupModal";
 import { useTheme } from "@/hooks/use-theme";
 import { api } from "@/lib/api";
@@ -39,6 +41,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFriendsSearch, setShowFriendsSearch] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const { isDark, toggle: toggleTheme } = useTheme();
   const { logout } = useAuth();
@@ -82,6 +85,14 @@ const Dashboard = () => {
     queryFn: () => api.getGroupAnalytics(activeGroup as number, "30d"),
     enabled: Boolean(activeGroup),
   });
+
+  const friendRequestsQuery = useQuery({
+    queryKey: ["friendRequests"],
+    queryFn: api.listFriendRequests,
+    refetchInterval: 10000,
+  });
+
+  const pendingRequestCount = friendRequestsQuery.data?.length ?? 0;
 
   const addTrackMutation = useMutation({
     mutationFn: (url: string) => api.addTrack(activeGroup as number, url),
@@ -146,65 +157,73 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border/50">
-        <div className="flex items-center justify-between px-4 h-12">
-          <div className="flex items-center gap-2">
-            <Disc3 className="w-5 h-5 text-primary" />
-            <span className="text-sm font-semibold tracking-tight">TuneTribe</span>
+      <header className="sticky top-0 z-30 bg-gradient-to-r from-background via-background to-primary/5 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-2.5">
+            <Disc3 className="w-6 h-6 text-primary" />
+            <span className="text-base font-semibold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">TuneTribe</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setShowFriendsSearch(true)}>
-              <UserPlus className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 relative" onClick={() => setShowFriendRequests(true)}>
+              <Bell className="w-4.5 h-4.5" />
+              {pendingRequestCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {pendingRequestCount}
+                </span>
+              )}
+            </Button>
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => setShowFriendsSearch(true)}>
+              <UserPlus className="w-4.5 h-4.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 p-0"
               onClick={() => navigate(activeGroup ? `/analytics?groupId=${activeGroup}` : "/analytics")}
             >
-              <BarChart3 className="w-4 h-4" />
+              <BarChart3 className="w-4.5 h-4.5" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleTheme}>
-              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggleTheme}>
+              {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate("/profile")}>
-              <UserCircle className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => navigate("/profile")}>
+              <UserCircle className="w-4.5 h-4.5" />
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 p-0"
               onClick={() => {
                 logout();
                 navigate("/auth");
               }}
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4.5 h-4.5" />
             </Button>
           </div>
         </div>
       </header>
 
       <div className="flex">
-        <aside className="hidden md:flex md:w-64 lg:w-72 flex-col border-r border-border/50 h-[calc(100vh-48px)] sticky top-12">
+        <aside className="hidden md:flex md:w-64 lg:w-72 flex-col h-[calc(100vh-56px)] sticky top-14">
           <div className="p-3 space-y-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search groups..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 h-8 text-xs border-0 bg-secondary shadow-none"
+                className="pl-9 h-9 text-sm border-0 bg-secondary shadow-none"
               />
             </div>
-            <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" onClick={() => setShowCreateGroup(true)}>
-              <Plus className="w-3.5 h-3.5" />
+            <Button variant="outline" size="sm" className="w-full h-9 text-sm gap-1.5" onClick={() => setShowCreateGroup(true)}>
+              <Plus className="w-4 h-4" />
               Create Group
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground px-3 py-2 block">
+            <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground px-3 py-2 block">
               Your Tribes ({filteredGroups.length})
             </span>
             {filteredGroups.map((group, index) => (
@@ -220,13 +239,13 @@ const Dashboard = () => {
         </aside>
 
         <main className="flex-1 min-w-0">
-          <div className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+          <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg font-semibold tracking-tight">
+                <h1 className="text-xl font-semibold tracking-tight">
                   {activeGroupSummary?.name ?? "Create your first tribe"}
                 </h1>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-sm text-muted-foreground mt-1">
                   {activeGroupSummary
                     ? `${activeGroupSummary.memberCount} members · ${activeGroupSummary.trackCount} tracks`
                     : "Start by creating a group or invite friends to an existing one."}
@@ -236,10 +255,10 @@ const Dashboard = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-xs gap-1 text-muted-foreground"
+                  className="text-sm gap-1 text-muted-foreground"
                   onClick={() => navigate(`/analytics?groupId=${activeGroup}`)}
                 >
-                  Analytics <ChevronRight className="w-3 h-3" />
+                  Analytics <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               )}
             </div>
@@ -247,23 +266,23 @@ const Dashboard = () => {
             {activeGroup ? (
               <AddTrackInput onSubmit={(url) => addTrackMutation.mutateAsync(url).then(() => undefined)} />
             ) : (
-              <div className="p-4 rounded-lg bg-card shadow-card text-sm text-muted-foreground">
+              <div className="p-4 rounded-lg bg-card shadow-card text-base text-muted-foreground">
                 Create a group before adding tracks.
               </div>
             )}
 
             <div className="space-y-0.5">
-              <div className="flex items-center justify-between px-3 py-1.5">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+              <div className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                   Recent Activity
                 </span>
-                <span className="text-[10px] font-mono text-muted-foreground">
+                <span className="text-xs font-mono text-muted-foreground">
                   {weeklyTotal} tracks this week
                 </span>
               </div>
 
               {tracks.length === 0 ? (
-                <div className="px-3 py-8 rounded-lg bg-card shadow-card text-sm text-muted-foreground">
+                <div className="px-3 py-8 rounded-lg bg-card shadow-card text-base text-muted-foreground">
                   No tracks have been shared in this group yet.
                 </div>
               ) : (
@@ -280,7 +299,7 @@ const Dashboard = () => {
           </div>
         </main>
 
-        <aside className="hidden lg:block w-72 xl:w-80 border-l border-border/50 h-[calc(100vh-48px)] sticky top-12 overflow-y-auto">
+        <aside className="hidden lg:block w-72 xl:w-80 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto">
           <div className="p-4 space-y-6">
             <div className="grid grid-cols-2 gap-2">
               <StatCard label="This week" value={String(weeklyTotal)} />
@@ -295,7 +314,7 @@ const Dashboard = () => {
         </aside>
       </div>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border/50 z-30">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-sm z-30">
         <div className="flex items-center justify-around h-14">
           {[
             { icon: Disc3, label: "Feed", active: true },
@@ -317,7 +336,7 @@ const Dashboard = () => {
               }`}
             >
               <tab.icon className="w-5 h-5" />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <span className="text-xs font-medium">{tab.label}</span>
             </button>
           ))}
         </div>
@@ -325,6 +344,9 @@ const Dashboard = () => {
 
       <AnimatePresence>
         {showFriendsSearch && <FriendsSearch onClose={() => setShowFriendsSearch(false)} />}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showFriendRequests && <FriendRequestsPanel onClose={() => setShowFriendRequests(false)} />}
       </AnimatePresence>
       <AnimatePresence>
         {showCreateGroup && (

@@ -21,6 +21,13 @@ export type Friend = {
   displayName: string;
   avatarUrl?: string;
   isFriend: boolean;
+  friendshipStatus: "none" | "pending_outgoing" | "pending_incoming" | "accepted";
+};
+
+export type FriendRequest = {
+  id: number;
+  fromUser: Friend;
+  createdAt: string;
 };
 
 export type GroupSummary = {

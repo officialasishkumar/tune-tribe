@@ -21,7 +21,7 @@ export const SourceBadge = ({ url, size = "sm" }: SourceBadgeProps) => {
   return (
     <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-secondary">
       <Icon className={`${iconSize} ${source.colorClass}`} />
-      <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+      <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
         {source.name}
       </span>
     </div>

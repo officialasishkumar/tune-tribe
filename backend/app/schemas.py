@@ -79,6 +79,13 @@ class FriendUser(APIModel):
     display_name: str
     avatar_url: str | None = None
     is_friend: bool
+    friendship_status: str = "none"
+
+
+class FriendRequest(APIModel):
+    id: int
+    from_user: FriendUser
+    created_at: datetime
 
 
 class GroupCreateRequest(APIModel):
