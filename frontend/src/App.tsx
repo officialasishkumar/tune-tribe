@@ -9,6 +9,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppProvider } from "@/lib/app-context";
 import { MainLayout } from "@/components/layout/MainLayout";
 
+const LandingPage3D = lazy(() => import("./pages/LandingPage3D"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
 const AuthPage = lazy(() => import("./pages/AuthPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const AnalyticsPage = lazy(() => import("./pages/AnalyticsPage"));
@@ -27,7 +29,7 @@ const App = () => (
           <BrowserRouter>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
               <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<LandingPage3D />} />
                 <Route path="/auth" element={<AuthPage />} />
                 <Route
                   element={

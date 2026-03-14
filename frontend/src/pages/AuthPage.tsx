@@ -23,11 +23,19 @@ const AuthPage = () => {
   const [stats, setStats] = useState<GlobalStatsResponse | null>(null);
 
   const navigate = useNavigate();
-  const { isAuthenticated, setSession } = useAuth();
+  const { isAuthenticated, isLoading, setSession } = useAuth();
 
   useEffect(() => {
     api.getGlobalStats().then(setStats).catch(console.error);
   }, []);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Disc3 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
