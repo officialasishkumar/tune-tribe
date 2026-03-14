@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { Disc3, Search, Plus, BarChart3, LogOut, Settings, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Disc3, Search, Plus, BarChart3, LogOut, Moon, Sun, UserCircle, UserPlus, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GroupCard, type Group } from "@/components/GroupCard";
 import { TrackCard, type Track } from "@/components/TrackCard";
 import { AddTrackInput } from "@/components/AddTrackInput";
 import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
+import { FriendsSearch } from "@/components/FriendsSearch";
+import { CreateGroupModal } from "@/components/CreateGroupModal";
+import { useTheme } from "@/hooks/use-theme";
 import { toast } from "sonner";
 
 const mockGroups: Group[] = [
@@ -32,7 +35,9 @@ const mockTracks: Track[] = [
 const Dashboard = () => {
   const [activeGroup, setActiveGroup] = useState<string>("1");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showFriendsSearch, setShowFriendsSearch] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const { isDark, toggle: toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleAddTrack = (url: string) => {
@@ -46,30 +51,26 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Top bar */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50">
+      <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border/50">
         <div className="flex items-center justify-between px-4 h-12">
           <div className="flex items-center gap-2">
             <Disc3 className="w-5 h-5 text-primary" />
             <span className="text-sm font-semibold tracking-tight">TuneTribe</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => navigate("/analytics")}
-            >
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setShowFriendsSearch(true)}>
+              <UserPlus className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate("/analytics")}>
               <BarChart3 className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <Settings className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={toggleTheme}>
+              {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0"
-              onClick={() => navigate("/")}
-            >
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate("/profile")}>
+              <UserCircle className="w-4 h-4" />
+            </Button>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate("/")}>
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
@@ -89,7 +90,12 @@ const Dashboard = () => {
                 className="pl-8 h-8 text-xs border-0 bg-secondary shadow-none"
               />
             </div>
-            <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-8 text-xs gap-1.5"
+              onClick={() => setShowCreateGroup(true)}
+            >
               <Plus className="w-3.5 h-3.5" />
               Create Group
             </Button>
@@ -174,18 +180,19 @@ const Dashboard = () => {
       </div>
 
       {/* Mobile bottom tabs */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border/50 z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border/50 z-30">
         <div className="flex items-center justify-around h-14">
           {[
             { icon: Disc3, label: "Feed", active: true },
-            { icon: Search, label: "Search", active: false },
-            { icon: Plus, label: "Add", active: false },
+            { icon: Search, label: "Search", active: false, onClick: () => setShowFriendsSearch(true) },
+            { icon: Plus, label: "Add", active: false, onClick: () => setShowCreateGroup(true) },
             { icon: BarChart3, label: "Analytics", active: false, onClick: () => navigate("/analytics") },
+            { icon: UserCircle, label: "Profile", active: false, onClick: () => navigate("/profile") },
           ].map((tab) => (
             <button
               key={tab.label}
               onClick={tab.onClick}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 ${
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 ${
                 tab.active ? "text-primary" : "text-muted-foreground"
               }`}
             >
@@ -195,6 +202,23 @@ const Dashboard = () => {
           ))}
         </div>
       </nav>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showFriendsSearch && (
+          <FriendsSearch onClose={() => setShowFriendsSearch(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showCreateGroup && (
+          <CreateGroupModal
+            onClose={() => setShowCreateGroup(false)}
+            onCreate={(name, members) => {
+              toast.success(`Group "${name}" created`);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
