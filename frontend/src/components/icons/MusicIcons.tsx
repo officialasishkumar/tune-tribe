@@ -22,4 +22,10 @@ export const GenericMusicIcon = ({ className }: { className?: string }) => (
   <Music className={className} />
 );
 
+export const SoundCloudIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.1 11.2c-.3 0-.6.1-.8.2v5.7c0 .5.4.9.9.9h.4v-6.6c-.1-.1-.3-.2-.5-.2zm-1.8.6v5.8h.9v-6.1c0-.4-.4-.5-.9-.5V11.8zm-1.8 0v5.8h.9v-6.2c0-.3-.3-.4-.6-.4-.1 0-.2 0-.3.1v.7zm-1.7.3v5.5h.9v-6c-.1-.1-.2-.1-.4-.1-.3 0-.5.2-.5.5v.1zm-1.8.6v4.9h.9v-5.6c-.1-.2-.3-.3-.5-.3-.2 0-.4.1-.4.4v.6zm-1.8 1v3.9h.9v-4.7c0-.2-.2-.4-.5-.4-.2 0-.4.2-.4.5v.7zm-1.8 1.4v2.5h.9v-3.3c-.1-.2-.3-.3-.5-.3-.2 0-.4.1-.4.4v.7zm-1.8 1v1.5h.9v-2.1c-.1-.2-.3-.2-.5-.2-.2 0-.4.2-.4.4v.4zM23.1 11.2c-1-.9-2.3-1.4-3.7-1.4-.4 0-.8.1-1.1.2C17.3 6.9 14.5 5 11.2 5v12.8h11.9c.5 0 1-.4 1-.9v-4.8c0-.3-.3-.7-1-.9z"/>
+  </svg>
+);
+
 export { Disc3 as TuneTribeIcon, BarChart3 as AnalyticsIcon };

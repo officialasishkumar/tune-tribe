@@ -43,7 +43,7 @@ export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
         </div>
       </div>
 
-      <SourceBadge url={track.url} />
+      <SourceBadge url={track.url} showLabel={false} />
 
       <span className="hidden sm:inline-flex text-xs font-mono px-2 py-0.5 rounded-md bg-secondary text-muted-foreground">
         {track.genre}

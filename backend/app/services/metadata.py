@@ -22,6 +22,8 @@ ALLOWED_HOSTS = {
     "www.youtube.com",
     "music.youtube.com",
     "youtu.be",
+    "soundcloud.com",
+    "m.soundcloud.com",
 }
 
 
@@ -30,6 +32,7 @@ class TrackSource:
     APPLE_MUSIC = "apple_music"
     YOUTUBE = "youtube"
     YOUTUBE_MUSIC = "youtube_music"
+    SOUNDCLOUD = "soundcloud"
 
 
 SOURCE_LABELS = {
@@ -37,6 +40,7 @@ SOURCE_LABELS = {
     TrackSource.APPLE_MUSIC: "Apple Music",
     TrackSource.YOUTUBE: "YouTube",
     TrackSource.YOUTUBE_MUSIC: "YouTube Music",
+    TrackSource.SOUNDCLOUD: "SoundCloud",
 }
 
 
@@ -90,7 +94,7 @@ def ensure_supported_url(raw_url: str) -> tuple[str, str]:
     if host not in {h.removeprefix("www.") for h in ALLOWED_HOSTS}:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Unsupported music provider. Use Spotify, Apple Music, YouTube, or YouTube Music.",
+            detail="Unsupported music provider. Use Spotify, Apple Music, YouTube, YouTube Music, or SoundCloud.",
         )
 
     return parsed.geturl(), host
@@ -104,6 +108,8 @@ def detect_source(url: str) -> str:
         return TrackSource.APPLE_MUSIC
     if host == "music.youtube.com":
         return TrackSource.YOUTUBE_MUSIC
+    if "soundcloud.com" in host:
+        return TrackSource.SOUNDCLOUD
     return TrackSource.YOUTUBE
 
 
@@ -118,6 +124,8 @@ def extract_source_identifier(url: str, source: str) -> str | None:
         return parse_qs(parsed.query).get("v", [None])[0]
     if source == TrackSource.APPLE_MUSIC:
         return parse_qs(parsed.query).get("i", [None])[0] or parsed.path.rstrip("/").split("/")[-1]
+    if source == TrackSource.SOUNDCLOUD:
+        return parsed.path.strip("/") or None
     return None
 
 
@@ -135,6 +143,8 @@ async def resolve_track(url: str) -> ResolvedTrack:
                 resolved = await _resolve_spotify(client, canonical_url, source_identifier)
             elif source in {TrackSource.YOUTUBE, TrackSource.YOUTUBE_MUSIC}:
                 resolved = await _resolve_youtube(client, canonical_url, source_identifier, source)
+            elif source == TrackSource.SOUNDCLOUD:
+                resolved = await _resolve_soundcloud(client, canonical_url, source_identifier)
             else:
                 resolved = await _resolve_apple_music(client, canonical_url, source_identifier)
 
@@ -201,6 +211,28 @@ async def _resolve_youtube(
         source_identifier=source_identifier,
         title=parsed_title,
         artist=parsed_artist,
+        album=None,
+        genre="Unknown",
+        album_art_url=payload.get("thumbnail_url"),
+        duration_ms=None,
+    )
+
+
+async def _resolve_soundcloud(
+    client: httpx.AsyncClient,
+    url: str,
+    source_identifier: str | None,
+) -> ResolvedTrack:
+    oembed_response = await client.get(f"https://soundcloud.com/oembed?url={quote_plus(url)}&format=json")
+    oembed_response.raise_for_status()
+    payload = oembed_response.json()
+
+    return ResolvedTrack(
+        source=TrackSource.SOUNDCLOUD,
+        source_url=url,
+        source_identifier=source_identifier,
+        title=payload.get("title", "Unknown Track"),
+        artist=payload.get("author_name", "Unknown Artist"),
         album=None,
         genre="Unknown",
         album_art_url=payload.get("thumbnail_url"),
