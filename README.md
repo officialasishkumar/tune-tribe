@@ -26,6 +26,7 @@ uvicorn app.main:app --reload --port 8000
 
 The frontend proxies `/api` to `http://127.0.0.1:8000` in development.
 The backend uses SQLite by default for local development unless you override `TUNETRIBE_DATABASE_URL`.
+The production container stack now targets Python 3.14, Node.js 24, Nginx 1.28, and MySQL 8.4.
 
 ## CI/CD
 
@@ -41,6 +42,9 @@ GitHub Actions now provides:
 - Set `TUNETRIBE_SECRET_KEY` to a strong random secret and do not commit real secrets into the repo.
 - Set `TUNETRIBE_ALLOWED_HOSTS` and `TUNETRIBE_CORS_ORIGINS` for your deployed domains.
 - Disable demo data with `TUNETRIBE_SEED_DEMO_DATA=false`.
+- The production app now validates that the secret key is non-default, demo seeding is disabled, and SQLite is not used when `TUNETRIBE_ENVIRONMENT=production`.
+- Backend container startup now runs database bootstrap once before Uvicorn starts, which avoids per-worker migration and seeding races.
+- `TUNETRIBE_WEB_CONCURRENCY` controls backend worker count in the production container and defaults to `2`.
 - Set `TUNETRIBE_DATABASE_URL` to your managed MySQL instance if you are not using the bundled container.
 - The provided Dockerfiles and `compose.yaml` now run a MySQL-backed stack with persistent storage, health checks, and startup gating suitable as a production baseline.
 

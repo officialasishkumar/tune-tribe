@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
@@ -9,8 +10,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.bootstrap import run_startup_tasks
 from app.config import get_settings
-from app.db import engine, get_db, init_db, SessionLocal
+from app.db import engine, get_db
 from app.deps import get_current_user
 from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
@@ -30,12 +32,18 @@ from app.schemas import (
 from app.security import create_access_token, hash_password, verify_password
 from app.services.analytics import build_analytics, filter_tracks_by_window
 from app.services.metadata import SOURCE_LABELS, resolve_track
-from app.services.seed import seed_database
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        if settings.run_startup_tasks_on_app_start:
+            run_startup_tasks()
+        yield
+
+    app = FastAPI(title=settings.app_name, lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -44,13 +52,6 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type"],
     )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts or ["*"])
-
-    @app.on_event("startup")
-    def startup() -> None:
-        init_db()
-        if settings.seed_demo_data:
-            with SessionLocal() as db:
-                seed_database(db)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

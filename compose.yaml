@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4@sha256:be18eb9dc45eea9b86cb74f8c68ab92ce8569ecc37ea4e6fade02e37036c5ff4
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-tunetribe}
       MYSQL_USER: ${MYSQL_USER:-tunetribe}
@@ -20,11 +20,14 @@ services:
     build:
       context: ./backend
     environment:
+      TUNETRIBE_ENVIRONMENT: production
       TUNETRIBE_SECRET_KEY: ${TUNETRIBE_SECRET_KEY:?set TUNETRIBE_SECRET_KEY in your environment or .env file}
       TUNETRIBE_DATABASE_URL: mysql+pymysql://${MYSQL_USER:-tunetribe}:${MYSQL_PASSWORD:?set MYSQL_PASSWORD in your environment or .env file}@mysql:3306/${MYSQL_DATABASE:-tunetribe}?charset=utf8mb4
       TUNETRIBE_CORS_ORIGINS: ${TUNETRIBE_CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
       TUNETRIBE_ALLOWED_HOSTS: ${TUNETRIBE_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       TUNETRIBE_SEED_DEMO_DATA: ${TUNETRIBE_SEED_DEMO_DATA:-false}
+      TUNETRIBE_RUN_STARTUP_TASKS_ON_APP_START: "false"
+      TUNETRIBE_WEB_CONCURRENCY: ${TUNETRIBE_WEB_CONCURRENCY:-2}
     ports:
       - "8000:8000"
     depends_on:
