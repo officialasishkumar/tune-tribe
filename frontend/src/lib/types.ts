@@ -1,0 +1,92 @@
+export type User = {
+  id: number;
+  email: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl?: string | null;
+};
+
+export type AuthResponse = {
+  accessToken: string;
+  tokenType: string;
+  user: User;
+};
+
+export type Friend = {
+  id: number;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  isFriend: boolean;
+};
+
+export type GroupSummary = {
+  id: number;
+  name: string;
+  memberCount: number;
+  trackCount: number;
+  lastActiveAt?: string | null;
+  members: string[];
+};
+
+export type Track = {
+  id: number | string;
+  title: string;
+  artist: string;
+  genre: string;
+  url: string;
+  source: string;
+  sharedBy: string;
+  albumArtUrl?: string | null;
+  sharedAt: string;
+};
+
+export type StatPoint = {
+  label: string;
+  value: string;
+  change?: string | null;
+};
+
+export type DistributionPoint = {
+  name: string;
+  value: number;
+};
+
+export type SourcePoint = {
+  name: string;
+  tracks: number;
+};
+
+export type DailyPoint = {
+  day: string;
+  tracks: number;
+};
+
+export type MonthlyPoint = {
+  month: string;
+  tracks: number;
+};
+
+export type MemberLeaderboardEntry = {
+  name: string;
+  tracks: number;
+  topGenre: string;
+};
+
+export type TopTrackEntry = {
+  title: string;
+  artist: string;
+  shares: number;
+  genre: string;
+};
+
+export type Analytics = {
+  stats: StatPoint[];
+  genreDistribution: DistributionPoint[];
+  sourceLoyalty: SourcePoint[];
+  weeklyActivity: DailyPoint[];
+  monthlyTrend: MonthlyPoint[];
+  memberLeaderboard: MemberLeaderboardEntry[];
+  topTracks: TopTrackEntry[];
+};
