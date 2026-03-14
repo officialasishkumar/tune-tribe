@@ -117,9 +117,6 @@ export const TrackDetailsModal = ({ track, onClose }: TrackDetailsModalProps) =>
             <div className="flex min-w-0 flex-1 flex-col sm:pb-2">
               <div className="mb-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <SourceBadge url={track.url} size="md" />
-                <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest text-secondary-foreground">
-                  {track.source}
-                </span>
               </div>
               <h2 className="line-clamp-2 text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                 {track.title}
