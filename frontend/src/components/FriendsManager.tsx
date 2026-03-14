@@ -139,7 +139,7 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
+                    onClick={() => setActiveTab(tab.id as "friends" | "requests" | "search")}
                     className={`flex items-center gap-2 text-sm font-medium transition-colors relative pb-3 -mb-3 ${
                       activeTab === tab.id ? "text-primary" : "text-muted-foreground hover:text-foreground"
                     }`}
