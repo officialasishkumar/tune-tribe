@@ -3,7 +3,8 @@ import { motion } from "framer-motion";
 import { X, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FriendsSearch, type Friend } from "./FriendsSearch";
+import { FriendsSearch } from "./FriendsSearch";
+import type { Friend } from "@/lib/types";
 import { toast } from "sonner";
 import { AnimatePresence } from "framer-motion";
 
