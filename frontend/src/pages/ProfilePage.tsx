@@ -1,26 +1,35 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Camera, Check, Mic, Music } from "lucide-react";
+import { ArrowLeft, Check, Edit3 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
+import { StatCard, GenreDistribution, SourceLoyalty } from "@/components/AnalyticsCharts";
+import { AvatarPickerModal } from "@/components/AvatarPickerModal";
+import { ProfileInfo } from "@/components/ProfileInfo";
+import { ProfileHeatmap } from "@/components/ProfileHeatmap";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { useTheme } from "@/hooks/use-theme";
 
 const ProfilePage = () => {
   const navigate = useNavigate();
   const { updateUser } = useAuth();
+  const { isDark } = useTheme();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState("");
-  const [bio, setBio] = useState("");
-  const [favoriteGenre, setFavoriteGenre] = useState("");
-  const [favoriteArtist, setFavoriteArtist] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  
+  const [profileData, setProfileData] = useState({
+    displayName: "",
+    bio: "",
+    favoriteGenre: "",
+    favoriteArtist: "",
+    avatarUrl: "",
+    username: "",
+  });
 
   const profileQuery = useQuery({
     queryKey: ["profile"],
@@ -28,31 +37,38 @@ const ProfilePage = () => {
   });
 
   const analyticsQuery = useQuery({
-    queryKey: ["analytics", "me", "30d"],
-    queryFn: () => api.getPersonalAnalytics("30d"),
+    queryKey: ["analytics", "me", "all"],
+    queryFn: () => api.getPersonalAnalytics("all"),
   });
 
   useEffect(() => {
     if (!profileQuery.data) return;
-    setDisplayName(profileQuery.data.displayName);
-    setBio(profileQuery.data.bio);
-    setFavoriteGenre(profileQuery.data.favoriteGenre ?? "");
-    setFavoriteArtist(profileQuery.data.favoriteArtist ?? "");
-    setAvatarUrl(profileQuery.data.avatarUrl ?? "");
+    setProfileData({
+      displayName: profileQuery.data.displayName,
+      bio: profileQuery.data.bio,
+      favoriteGenre: profileQuery.data.favoriteGenre ?? "",
+      favoriteArtist: profileQuery.data.favoriteArtist ?? "",
+      avatarUrl: profileQuery.data.avatarUrl ?? "",
+      username: profileQuery.data.username,
+    });
   }, [profileQuery.data]);
+
+  const handleDataChange = (field: keyof typeof profileData, value: string) => {
+    setProfileData(prev => ({ ...prev, [field]: value }));
+  };
 
   const saveProfileMutation = useMutation({
     mutationFn: () => api.updateProfile({ 
-      displayName, 
-      bio, 
-      favoriteGenre: favoriteGenre || null,
-      favoriteArtist: favoriteArtist || null,
-      avatarUrl: avatarUrl || null 
+      displayName: profileData.displayName, 
+      bio: profileData.bio, 
+      favoriteGenre: profileData.favoriteGenre || null,
+      favoriteArtist: profileData.favoriteArtist || null,
+      avatarUrl: profileData.avatarUrl || null 
     }),
     onSuccess: (user) => {
       updateUser(user);
       queryClient.setQueryData(["profile"], user);
-      toast.success("Profile updated");
+      toast.success("Profile updated successfully");
       setIsEditing(false);
     },
     onError: (error) => {
@@ -60,154 +76,119 @@ const ProfilePage = () => {
     },
   });
 
-  const handleAvatarUpload = () => {
-    setAvatarUrl(`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(displayName || "TuneTribe")}`);
-    toast.success("Profile picture updated");
+  const handleAvatarSelect = (url: string) => {
+    handleDataChange("avatarUrl", url);
+    setShowAvatarPicker(false);
+    if (!isEditing) {
+      api.updateProfile({ 
+        displayName: profileQuery.data?.displayName || "", 
+        bio: profileQuery.data?.bio || "", 
+        avatarUrl: url 
+      }).then(user => {
+        updateUser(user);
+        queryClient.setQueryData(["profile"], user);
+        toast.success("Profile picture updated");
+      }).catch(() => toast.error("Failed to update profile picture"));
+    }
   };
 
   const stats = analyticsQuery.data?.stats ?? [];
+  const heatmapData = analyticsQuery.data?.activityHeatmap ?? [];
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50">
-        <div className="flex items-center justify-between px-4 h-12">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="w-4 h-4" />
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20 pb-20">
+      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b">
+        <div className="max-w-4xl mx-auto flex items-center justify-between px-6 h-16">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => navigate("/dashboard")}>
+              <ArrowLeft className="w-5 h-5" />
             </Button>
-            <span className="text-sm font-semibold tracking-tight">Profile</span>
+            <h1 className="text-xl font-bold tracking-tight">Your Profile</h1>
           </div>
           {!isEditing ? (
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setIsEditing(true)}>
-              Edit Profile
+            <Button variant="outline" size="sm" className="h-9 px-4 rounded-full gap-2" onClick={() => setIsEditing(true)}>
+              <Edit3 className="w-4 h-4" /> Edit
             </Button>
           ) : (
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
-              <Check className="w-3 h-3" /> {saveProfileMutation.isPending ? "Saving" : "Save"}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-9 px-4 rounded-full" onClick={() => setIsEditing(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" className="h-9 px-4 rounded-full gap-2 shadow-sm" onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
+                <Check className="w-4 h-4" /> {saveProfileMutation.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
           )}
         </div>
       </header>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
-          className="flex items-start gap-4"
-        >
-          <div className="relative">
-            <div className="w-20 h-20 rounded-xl bg-secondary flex items-center justify-center overflow-hidden shadow-card">
-              {avatarUrl ? (
-                <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-2xl font-semibold text-muted-foreground">{displayName.charAt(0) || "T"}</span>
-              )}
+      <div className="max-w-4xl mx-auto px-6 py-10 space-y-10">
+        <ProfileInfo 
+          data={profileData} 
+          isEditing={isEditing} 
+          onDataChange={handleDataChange} 
+          onAvatarClick={() => setShowAvatarPicker(true)} 
+        />
+
+        <ProfileHeatmap data={heatmapData} isDark={isDark} />
+
+        {stats.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-6">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">All Time Stats</h2>
+              <div className="h-px flex-1 bg-border/40" />
             </div>
-            {isEditing && (
-              <button
-                onClick={handleAvatarUpload}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-elevated"
-              >
-                <Camera className="w-3.5 h-3.5 text-primary-foreground" />
-              </button>
-            )}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+            >
+              {stats.map((stat) => (
+                <StatCard key={stat.label} label={stat.label} value={stat.value} change={stat.change ?? undefined} />
+              ))}
+            </motion.div>
+          </section>
+        )}
+
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">Genre Mix</h2>
+              <div className="h-px flex-1 bg-border/40" />
+            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="p-6 rounded-2xl bg-card border shadow-sm"
+            >
+              <GenreDistribution data={analyticsQuery.data?.genreDistribution ?? []} />
+            </motion.div>
           </div>
 
-          <div className="flex-1 space-y-2">
-            {isEditing ? (
-              <>
-                <Input
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="h-8 text-sm font-semibold"
-                  placeholder="Display name"
-                />
-                <Input
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value)}
-                  className="h-8 text-xs"
-                  placeholder="Bio"
-                />
-                <div className="flex gap-2">
-                  <Input
-                    value={favoriteGenre}
-                    onChange={(e) => setFavoriteGenre(e.target.value)}
-                    className="h-8 text-xs"
-                    placeholder="Favorite Genre"
-                  />
-                  <Input
-                    value={favoriteArtist}
-                    onChange={(e) => setFavoriteArtist(e.target.value)}
-                    className="h-8 text-xs"
-                    placeholder="Favorite Artist"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <h2 className="text-lg font-semibold tracking-tight">{profileQuery.data?.displayName}</h2>
-                <p className="text-xs text-muted-foreground">{profileQuery.data?.bio || "No bio yet."}</p>
-                <div className="flex gap-4 mt-2">
-                  {profileQuery.data?.favoriteGenre && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Music className="w-3 h-3" /> {profileQuery.data.favoriteGenre}
-                    </span>
-                  )}
-                  {profileQuery.data?.favoriteArtist && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Mic className="w-3 h-3" /> {profileQuery.data.favoriteArtist}
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-
-            <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs font-mono text-primary">@{profileQuery.data?.username}</span>
-              <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">Permanent</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">Source Loyalty</h2>
+              <div className="h-px flex-1 bg-border/40" />
             </div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="p-6 rounded-2xl bg-card border shadow-sm"
+            >
+              <SourceLoyalty data={analyticsQuery.data?.sourceLoyalty ?? []} />
+            </motion.div>
           </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-3"
-        >
-          {stats.map((stat) => (
-            <StatCard key={stat.label} label={stat.label} value={stat.value} change={stat.change ?? undefined} />
-          ))}
-        </motion.div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className="p-4 rounded-xl bg-card shadow-card"
-          >
-            <GenreDistribution data={analyticsQuery.data?.genreDistribution ?? []} />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.15 }}
-            className="p-4 rounded-xl bg-card shadow-card"
-          >
-            <SourceLoyalty data={analyticsQuery.data?.sourceLoyalty ?? []} />
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="p-4 rounded-xl bg-card shadow-card md:col-span-2"
-          >
-            <WeeklyActivity data={analyticsQuery.data?.weeklyActivity ?? []} />
-          </motion.div>
-        </div>
+        </section>
       </div>
+
+      <AvatarPickerModal 
+        isOpen={showAvatarPicker} 
+        onClose={() => setShowAvatarPicker(false)} 
+        onSelect={handleAvatarSelect} 
+      />
     </div>
   );
 };

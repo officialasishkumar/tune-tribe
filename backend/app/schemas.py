@@ -210,6 +210,12 @@ class DailyPoint(APIModel):
     tracks: int
 
 
+class ActivityHeatmapPoint(APIModel):
+    date: str
+    count: int
+    level: int
+
+
 class MonthlyPoint(APIModel):
     month: str
     tracks: int
@@ -239,6 +245,7 @@ class AnalyticsResponse(APIModel):
     genre_distribution: list[DistributionPoint]
     source_loyalty: list[SourcePoint]
     weekly_activity: list[DailyPoint]
+    activity_heatmap: list[ActivityHeatmapPoint]
     monthly_trend: list[MonthlyPoint]
     member_leaderboard: list[MemberLeaderboardEntry]
     top_tracks: list[TopTrackEntry]

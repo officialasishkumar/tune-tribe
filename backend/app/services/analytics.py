@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.models import TrackShare
 from app.schemas import (
+    ActivityHeatmapPoint,
     AnalyticsResponse,
     DailyPoint,
     DistributionPoint,
@@ -101,11 +102,37 @@ def build_analytics(tracks: list[TrackShare]) -> AnalyticsResponse:
             )
         )
 
+    end_date = datetime.now(timezone.utc).date()
+    if tracks:
+        start_date = min(ensure_aware(track.shared_at).date() for track in tracks)
+        # Ensure we always show at least the current year or 365 days
+        min_start = end_date - timedelta(days=364)
+        start_date = min(start_date, min_start)
+    else:
+        start_date = end_date - timedelta(days=364)
+        
+    activity_heatmap = []
+    daily_counts = Counter(ensure_aware(track.shared_at).date().isoformat() for track in tracks)
+    
+    current_date = start_date
+    while current_date <= end_date:
+        d_str = current_date.isoformat()
+        count = daily_counts.get(d_str, 0)
+        level = 0
+        if count > 0:
+            if count == 1: level = 1
+            elif count == 2: level = 2
+            elif count <= 4: level = 3
+            else: level = 4
+        activity_heatmap.append(ActivityHeatmapPoint(date=d_str, count=count, level=level))
+        current_date += timedelta(days=1)
+
     return AnalyticsResponse(
         stats=stats,
         genre_distribution=genre_distribution,
         source_loyalty=source_loyalty,
         weekly_activity=weekly_activity,
+        activity_heatmap=activity_heatmap,
         monthly_trend=monthly_trend,
         member_leaderboard=member_leaderboard,
         top_tracks=top_tracks,
