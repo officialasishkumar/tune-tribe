@@ -76,6 +76,14 @@ test-results/
 *.sqlite-wal
 tunetribe.db
 
+# Workspace-specific backend runtime artifacts
+backend/.venv/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/tunetribe.db
+
 # OS Files
 .DS_Store
 .DS_Store?

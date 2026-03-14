@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     auth_rate_limit_max_attempts: int = 5
     auth_rate_limit_window_seconds: int = 300
     metadata_max_redirects: int = 3
+    metadata_http_timeout_seconds: float = 10.0
+    metadata_cache_ttl_seconds: int = 86400
+    metadata_memory_cache_max_entries: int = 2048
 
     @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod

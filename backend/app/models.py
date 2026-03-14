@@ -107,3 +107,30 @@ class TrackShare(Base):
 
     group: Mapped[Group] = relationship("Group", back_populates="tracks")
     shared_by: Mapped[User] = relationship("User", back_populates="shared_tracks")
+
+
+class TrackMetadataCacheEntry(Base):
+    __tablename__ = "track_metadata_cache"
+    __table_args__ = (
+        Index("ix_track_metadata_cache_expires_at", "expires_at"),
+        Index("ix_track_metadata_cache_source", "source"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cache_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    lookup_url: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(32))
+    source_url: Mapped[str] = mapped_column(Text)
+    source_identifier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    title: Mapped[str] = mapped_column(String(255))
+    artist: Mapped[str] = mapped_column(String(255))
+    album: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    genre: Mapped[str] = mapped_column(String(120), default="Unknown")
+    album_art_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_name: Mapped[str] = mapped_column(String(64))
+    hit_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_accessed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    refreshed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

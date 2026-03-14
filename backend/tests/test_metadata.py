@@ -9,6 +9,11 @@ def test_detect_source_supports_all_platforms() -> None:
     assert detect_source("https://music.apple.com/us/album/example/123?i=456") == TrackSource.APPLE_MUSIC
     assert detect_source("https://www.youtube.com/watch?v=abc") == TrackSource.YOUTUBE
     assert detect_source("https://music.youtube.com/watch?v=abc") == TrackSource.YOUTUBE_MUSIC
+    assert detect_source("https://www.deezer.com/track/123") == TrackSource.DEEZER
+    assert detect_source("https://listen.tidal.com/track/123") == TrackSource.TIDAL
+    assert detect_source("https://artist.bandcamp.com/track/example") == TrackSource.BANDCAMP
+    assert detect_source("https://audiomack.com/artist/song/example") == TrackSource.AUDIOMACK
+    assert detect_source("https://music.amazon.in/albums/B0EXAMPLE") == TrackSource.AMAZON_MUSIC
 
 
 def test_parse_video_title_extracts_artist_and_title() -> None:
@@ -29,3 +34,8 @@ def test_parse_video_title_extracts_artist_and_title() -> None:
 def test_ensure_supported_url_rejects_unsafe_provider_urls(url: str, message: str) -> None:
     with pytest.raises(HTTPException, match=message):
         ensure_supported_url(url)
+
+
+def test_ensure_supported_url_rejects_unknown_hosts() -> None:
+    with pytest.raises(HTTPException, match="Unsupported music provider"):
+        ensure_supported_url("https://example.com/track/abc")

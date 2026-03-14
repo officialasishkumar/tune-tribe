@@ -484,7 +484,7 @@ def create_app() -> FastAPI:
         current_user: User = Depends(get_current_user),
     ) -> TrackSummary:
         group = _get_accessible_group(db, group_id, current_user.id)
-        resolved = await resolve_track(payload.url)
+        resolved = await resolve_track(payload.url, db=db)
         track = TrackShare(
             group_id=group.id,
             shared_by_id=current_user.id,
