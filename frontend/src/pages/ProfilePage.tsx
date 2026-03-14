@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { StatCard, GenreDistribution, SourceLoyalty } from "@/components/AnalyticsCharts";
 import { AvatarPickerModal } from "@/components/AvatarPickerModal";
 import { ProfileInfo } from "@/components/ProfileInfo";
-import { ProfileHeatmap } from "@/components/ProfileHeatmap";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -93,7 +92,6 @@ const ProfilePage = () => {
   };
 
   const stats = analyticsQuery.data?.stats ?? [];
-  const heatmapData = analyticsQuery.data?.activityHeatmap ?? [];
 
   return (
     <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20 pb-20">
@@ -129,8 +127,6 @@ const ProfilePage = () => {
           onDataChange={handleDataChange} 
           onAvatarClick={() => setShowAvatarPicker(true)} 
         />
-
-        <ProfileHeatmap data={heatmapData} isDark={isDark} />
 
         {stats.length > 0 && (
           <section>

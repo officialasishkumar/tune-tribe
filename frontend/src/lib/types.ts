@@ -75,12 +75,6 @@ export type DailyPoint = {
   tracks: number;
 };
 
-export type ActivityHeatmapPoint = {
-  date: string;
-  count: number;
-  level: number;
-};
-
 export type MonthlyPoint = {
   month: string;
   tracks: number;
@@ -110,7 +104,6 @@ export type Analytics = {
   genreDistribution: DistributionPoint[];
   sourceLoyalty: SourcePoint[];
   weeklyActivity: DailyPoint[];
-  activityHeatmap: ActivityHeatmapPoint[];
   monthlyTrend: MonthlyPoint[];
   memberLeaderboard: MemberLeaderboardEntry[];
   topTracks: TopTrackEntry[];
