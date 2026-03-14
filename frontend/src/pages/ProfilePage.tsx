@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Edit3 } from "lucide-react";
+import { Check, Edit3 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
@@ -94,33 +94,26 @@ const ProfilePage = () => {
   const stats = analyticsQuery.data?.stats ?? [];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20 pb-20">
-      <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b">
-        <div className="max-w-4xl mx-auto flex items-center justify-between px-6 h-16">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="w-5 h-5" />
+    <div className="flex flex-1 flex-col bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20 w-full">
+      <div className="w-full max-w-4xl mx-auto px-6 pt-10 pb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Your Profile</h1>
+        {!isEditing ? (
+          <Button variant="outline" size="sm" className="h-9 px-4 rounded-full gap-2" onClick={() => setIsEditing(true)}>
+            <Edit3 className="w-4 h-4" /> Edit
+          </Button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" className="h-9 px-4 rounded-full" onClick={() => setIsEditing(false)}>
+              Cancel
             </Button>
-            <h1 className="text-xl font-bold tracking-tight">Your Profile</h1>
+            <Button size="sm" className="h-9 px-4 rounded-full gap-2 shadow-sm" onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
+              <Check className="w-4 h-4" /> {saveProfileMutation.isPending ? "Saving..." : "Save"}
+            </Button>
           </div>
-          {!isEditing ? (
-            <Button variant="outline" size="sm" className="h-9 px-4 rounded-full gap-2" onClick={() => setIsEditing(true)}>
-              <Edit3 className="w-4 h-4" /> Edit
-            </Button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-9 px-4 rounded-full" onClick={() => setIsEditing(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" className="h-9 px-4 rounded-full gap-2 shadow-sm" onClick={() => saveProfileMutation.mutate()} disabled={saveProfileMutation.isPending}>
-                <Check className="w-4 h-4" /> {saveProfileMutation.isPending ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          )}
-        </div>
-      </header>
+        )}
+      </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-10 space-y-10">
+      <div className="w-full max-w-4xl mx-auto px-6 pb-10 space-y-10">
         <ProfileInfo 
           data={profileData} 
           isEditing={isEditing} 

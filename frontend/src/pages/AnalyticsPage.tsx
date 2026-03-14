@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Disc3, ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   PieChart,
@@ -58,41 +57,34 @@ const AnalyticsPage = () => {
   const analytics = analyticsQuery.data;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20">
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b">
-        <div className="flex items-center justify-between px-6 h-14">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={() => navigate("/dashboard")}>
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div className="flex flex-col">
-              <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground leading-none mb-0.5">
-                Tribe Analytics
-              </span>
-              <h1 className="text-lg font-bold tracking-tight">
-                {selectedGroup ? selectedGroup.name : "Select a Tribe"}
-              </h1>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-lg">
-            {["7d", "30d", "90d", "all"].map((filterValue) => (
-              <button
-                key={filterValue}
-                onClick={() => setTimeFilter(filterValue)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                  timeFilter === filterValue
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {filterValue.toUpperCase()}
-              </button>
-            ))}
-          </div>
+    <div className="flex flex-1 flex-col bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-secondary/20 w-full">
+      <div className="w-full max-w-7xl mx-auto px-6 pt-10 pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4 w-full">
+        <div className="flex flex-col">
+          <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground leading-none mb-1">
+            Tribe Analytics
+          </span>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {selectedGroup ? selectedGroup.name : "Select a Tribe"}
+          </h1>
         </div>
-      </header>
+        <div className="flex items-center gap-2 bg-secondary/50 p-1 rounded-lg self-start md:self-auto">
+          {["7d", "30d", "90d", "all"].map((filterValue) => (
+            <button
+              key={filterValue}
+              onClick={() => setTimeFilter(filterValue)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                timeFilter === filterValue
+                  ? "bg-background shadow-sm text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {filterValue.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8 pb-16">
+      <div className="w-full max-w-7xl mx-auto px-6 py-6 space-y-8 pb-16">
         {/* Overview Cards */}
         <section>
           <div className="flex items-center gap-2 mb-4">
