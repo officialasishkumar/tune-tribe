@@ -5,6 +5,7 @@
 .env.test.local
 .env.production.local
 .venv
+.venv*/
 env/
 venv/
 ENV/
@@ -55,8 +56,11 @@ bun.lockb
 frontend/dist/
 frontend/dist-ssr/
 *.tsbuildinfo
+coverage/
 playwright-report/
 test-results/
+.vite/
+.cache/
 .eslintcache
 .stylelintcache
 

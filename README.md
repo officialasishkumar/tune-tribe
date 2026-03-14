@@ -26,6 +26,14 @@ uvicorn app.main:app --reload --port 8000
 
 The frontend proxies `/api` to `http://127.0.0.1:8000` in development.
 
+## CI/CD
+
+GitHub Actions now provides:
+
+- `CI`: frontend lint, typecheck, tests, and production build plus backend pytest on pushes to `main` and on pull requests.
+- `Docker`: build validation for frontend and backend images on pull requests and pushes to `main`, with GHCR publishing on version tags like `v1.0.0`.
+- `Dependency Review`: pull-request checks for newly introduced dependency risk.
+
 ## Production notes
 
 - PostgreSQL is the recommended production database for TuneTribe because the app relies on relational joins across users, friendships, groups, memberships, and track shares.
