@@ -165,9 +165,9 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="sm" className="h-9 w-9 p-0 relative" onClick={() => setShowFriendRequests(true)}>
-              <Bell className="w-4.5 h-4.5" />
+              <Bell className="w-5 h-5" />
               {pendingRequestCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                   {pendingRequestCount}
                 </span>
               )}

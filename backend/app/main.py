@@ -203,13 +203,14 @@ def create_app() -> FastAPI:
             select(Friendship).where(Friendship.user_id == current_user.id, Friendship.friend_id == friend_id)
         )
         if existing is not None:
+            friendship_status = "accepted" if existing.status == "accepted" else "pending_outgoing"
             return FriendUser(
                 id=friend.id,
                 username=friend.username,
                 display_name=friend.display_name,
                 avatar_url=friend.avatar_url,
                 is_friend=existing.status == "accepted",
-                friendship_status="accepted" if existing.status == "accepted" else "pending_outgoing",
+                friendship_status=friendship_status,
             )
 
         reverse = db.scalar(

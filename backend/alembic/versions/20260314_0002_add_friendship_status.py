@@ -15,6 +15,8 @@ def upgrade() -> None:
         "friendships",
         sa.Column("status", sa.String(length=20), nullable=False, server_default="pending"),
     )
+    # Existing friendships were implicitly accepted; update them accordingly
+    op.execute("UPDATE friendships SET status = 'accepted' WHERE status = 'pending'")
 
 
 def downgrade() -> None:

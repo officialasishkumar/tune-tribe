@@ -28,7 +28,7 @@ export const AddTrackInput = ({ onSubmit }: AddTrackInputProps) => {
   return (
     <form onSubmit={handleSubmit} className="relative">
       <div className="flex items-center gap-2 p-2.5 rounded-xl bg-card shadow-card">
-        <Link2 className="w-4.5 h-4.5 text-muted-foreground ml-2 flex-shrink-0" />
+        <Link2 className="w-5 h-5 text-muted-foreground ml-2 flex-shrink-0" />
         <Input
           type="url"
           value={url}
