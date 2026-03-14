@@ -50,6 +50,8 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 .pnpm-store/
+bun.lock
+bun.lockb
 frontend/dist/
 frontend/dist-ssr/
 *.tsbuildinfo
@@ -60,7 +62,14 @@ test-results/
 
 # Database
 *.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
 *.sqlite3
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
 tunetribe.db
 
 # OS Files
