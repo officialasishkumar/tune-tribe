@@ -22,6 +22,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120))
     bio: Mapped[str] = mapped_column(String(255), default="")
+    favorite_genre: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    favorite_artist: Mapped[str | None] = mapped_column(String(120), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -2,6 +2,7 @@ import type {
   Analytics,
   AuthResponse,
   Friend,
+  GlobalStatsResponse,
   GroupSummary,
   Track,
   User,
@@ -82,7 +83,7 @@ export const api = {
       body: JSON.stringify(input),
       skipAuth: true,
     }),
-  register: (input: { email: string; password: string; username: string }) =>
+  register: (input: { email: string; password: string; username: string; displayName: string; favoriteGenre?: string; favoriteArtist?: string }) =>
     apiRequest<AuthResponse>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify(input),
@@ -90,7 +91,7 @@ export const api = {
     }),
   me: () => apiRequest<User>("/api/auth/me"),
   getProfile: () => apiRequest<User>("/api/profile"),
-  updateProfile: (input: { displayName: string; bio: string; avatarUrl?: string | null }) =>
+  updateProfile: (input: { displayName: string; bio: string; favoriteGenre?: string | null; favoriteArtist?: string | null; avatarUrl?: string | null }) =>
     apiRequest<User>("/api/profile", {
       method: "PATCH",
       body: JSON.stringify(input),
@@ -120,5 +121,9 @@ export const api = {
   removeFriend: (friendId: number) =>
     apiRequest<void>(`/api/friends/${friendId}`, {
       method: "DELETE",
+    }),
+  getGlobalStats: () =>
+    apiRequest<GlobalStatsResponse>("/api/stats", {
+      skipAuth: true,
     }),
 };

@@ -15,6 +15,7 @@ from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
     AnalyticsResponse,
     FriendUser,
+    GlobalStatsResponse,
     GroupCreateRequest,
     GroupSummary,
     LoginRequest,
@@ -54,6 +55,17 @@ def create_app() -> FastAPI:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/api/stats", response_model=GlobalStatsResponse)
+    def get_global_stats(db: Session = Depends(get_db)) -> GlobalStatsResponse:
+        groups_created = db.scalar(select(func.count(Group.id))) or 0
+        tracks_shared = db.scalar(select(func.count(TrackShare.id))) or 0
+        active_members = db.scalar(select(func.count(User.id))) or 0
+        return GlobalStatsResponse(
+            groups_created=groups_created,
+            tracks_shared=tracks_shared,
+            active_members=active_members
+        )
+
     @app.post("/api/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
     def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
         email_exists = db.scalar(select(User).where(func.lower(User.email) == payload.email.lower()))
@@ -67,8 +79,10 @@ def create_app() -> FastAPI:
         user = User(
             email=payload.email.lower(),
             username=payload.username,
-            display_name=payload.username.replace("_", " ").title(),
+            display_name=payload.display_name.strip(),
             bio="",
+            favorite_genre=payload.favorite_genre,
+            favorite_artist=payload.favorite_artist,
             avatar_url=f"https://api.dicebear.com/9.x/initials/svg?seed={payload.username}",
             password_hash=hash_password(payload.password),
         )
@@ -108,6 +122,8 @@ def create_app() -> FastAPI:
     ) -> UserSummary:
         current_user.display_name = payload.display_name.strip()
         current_user.bio = payload.bio.strip()
+        current_user.favorite_genre = payload.favorite_genre.strip() if payload.favorite_genre else None
+        current_user.favorite_artist = payload.favorite_artist.strip() if payload.favorite_artist else None
         current_user.avatar_url = payload.avatar_url
         db.add(current_user)
         db.commit()
@@ -317,6 +333,8 @@ def _serialize_user(user: User) -> UserSummary:
         username=user.username,
         display_name=user.display_name,
         bio=user.bio or "",
+        favorite_genre=user.favorite_genre,
+        favorite_artist=user.favorite_artist,
         avatar_url=user.avatar_url,
     )
 

@@ -1,15 +1,33 @@
+# Caches and Build Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.eggs/
+.coverage
+build/
+dist/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
 # Frontend
 frontend/node_modules
 frontend/dist
 frontend/playwright-report
 frontend/*.tsbuildinfo
 
-# Backend
-backend/.venv
-backend/.pytest_cache
-backend/__pycache__
+# Database
+*.db
+*.sqlite3
 backend/tunetribe.db
-backend/*.db
 
 # General
 .DS_Store

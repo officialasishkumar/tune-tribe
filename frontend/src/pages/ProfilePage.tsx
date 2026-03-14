@@ -18,6 +18,8 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
+  const [favoriteGenre, setFavoriteGenre] = useState("");
+  const [favoriteArtist, setFavoriteArtist] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
 
   const profileQuery = useQuery({
@@ -34,11 +36,19 @@ const ProfilePage = () => {
     if (!profileQuery.data) return;
     setDisplayName(profileQuery.data.displayName);
     setBio(profileQuery.data.bio);
+    setFavoriteGenre(profileQuery.data.favoriteGenre ?? "");
+    setFavoriteArtist(profileQuery.data.favoriteArtist ?? "");
     setAvatarUrl(profileQuery.data.avatarUrl ?? "");
   }, [profileQuery.data]);
 
   const saveProfileMutation = useMutation({
-    mutationFn: () => api.updateProfile({ displayName, bio, avatarUrl: avatarUrl || null }),
+    mutationFn: () => api.updateProfile({ 
+      displayName, 
+      bio, 
+      favoriteGenre: favoriteGenre || null,
+      favoriteArtist: favoriteArtist || null,
+      avatarUrl: avatarUrl || null 
+    }),
     onSuccess: (user) => {
       updateUser(user);
       queryClient.setQueryData(["profile"], user);
@@ -119,15 +129,41 @@ const ProfilePage = () => {
                   className="h-8 text-xs"
                   placeholder="Bio"
                 />
+                <div className="flex gap-2">
+                  <Input
+                    value={favoriteGenre}
+                    onChange={(e) => setFavoriteGenre(e.target.value)}
+                    className="h-8 text-xs"
+                    placeholder="Favorite Genre"
+                  />
+                  <Input
+                    value={favoriteArtist}
+                    onChange={(e) => setFavoriteArtist(e.target.value)}
+                    className="h-8 text-xs"
+                    placeholder="Favorite Artist"
+                  />
+                </div>
               </>
             ) : (
               <>
                 <h2 className="text-lg font-semibold tracking-tight">{profileQuery.data?.displayName}</h2>
                 <p className="text-xs text-muted-foreground">{profileQuery.data?.bio || "No bio yet."}</p>
+                <div className="flex gap-4 mt-2">
+                  {profileQuery.data?.favoriteGenre && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Music className="w-3 h-3" /> {profileQuery.data.favoriteGenre}
+                    </span>
+                  )}
+                  {profileQuery.data?.favoriteArtist && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Mic className="w-3 h-3" /> {profileQuery.data.favoriteArtist}
+                    </span>
+                  )}
+                </div>
               </>
             )}
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-2">
               <span className="text-xs font-mono text-primary">@{profileQuery.data?.username}</span>
               <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">Permanent</span>
             </div>

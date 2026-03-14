@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./tunetribe.db"
     secret_key: str = "change-this-secret-key-before-production-please"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 720
+    access_token_expire_minutes: int = 43200
     cors_origins: list[str] = Field(
         default_factory=lambda: ["http://localhost:8080", "http://127.0.0.1:8080"]
     )

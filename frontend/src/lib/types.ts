@@ -4,6 +4,8 @@ export type User = {
   username: string;
   displayName: string;
   bio: string;
+  favoriteGenre?: string | null;
+  favoriteArtist?: string | null;
   avatarUrl?: string | null;
 };
 
@@ -79,6 +81,12 @@ export type TopTrackEntry = {
   artist: string;
   shares: number;
   genre: string;
+};
+
+export type GlobalStatsResponse = {
+  groupsCreated: number;
+  tracksShared: number;
+  activeMembers: number;
 };
 
 export type Analytics = {

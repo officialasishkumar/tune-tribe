@@ -11,6 +11,8 @@ class UserSummary(BaseModel):
     username: str
     display_name: str
     bio: str = ""
+    favorite_genre: str | None = None
+    favorite_artist: str | None = None
     avatar_url: str | None = None
 
 
@@ -23,7 +25,10 @@ class TokenResponse(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr
     username: str = Field(min_length=3, max_length=24)
+    display_name: str = Field(min_length=2, max_length=120)
     password: str = Field(min_length=8, max_length=128)
+    favorite_genre: str | None = Field(default=None, max_length=120)
+    favorite_artist: str | None = Field(default=None, max_length=120)
 
     @field_validator("username")
     @classmethod
@@ -42,6 +47,8 @@ class LoginRequest(BaseModel):
 class ProfileUpdateRequest(BaseModel):
     display_name: str = Field(min_length=2, max_length=120)
     bio: str = Field(default="", max_length=255)
+    favorite_genre: str | None = Field(default=None, max_length=120)
+    favorite_artist: str | None = Field(default=None, max_length=120)
     avatar_url: str | None = Field(default=None, max_length=500)
 
 
@@ -120,6 +127,12 @@ class TopTrackEntry(BaseModel):
     artist: str
     shares: int
     genre: str
+
+
+class GlobalStatsResponse(BaseModel):
+    groups_created: int
+    tracks_shared: int
+    active_members: int
 
 
 class AnalyticsResponse(BaseModel):
