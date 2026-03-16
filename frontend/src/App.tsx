@@ -8,6 +8,7 @@ import { AuthProvider } from "@/lib/auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppProvider } from "@/lib/app-context";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { TelemetryRouteTracker } from "@/components/TelemetryRouteTracker";
 
 const LandingPage3D = lazy(() => import("./pages/LandingPage3D"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
@@ -27,6 +28,7 @@ const App = () => (
       <AuthProvider>
         <AppProvider>
           <BrowserRouter>
+            <TelemetryRouteTracker />
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
               <Routes>
                 <Route path="/" element={<LandingPage3D />} />

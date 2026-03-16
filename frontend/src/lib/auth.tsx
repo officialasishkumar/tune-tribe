@@ -9,6 +9,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, getStoredToken, setStoredToken } from "@/lib/api";
+import { clearTelemetryUserId, setTelemetryUserId } from "@/lib/telemetry";
 import type { User } from "@/lib/types";
 
 type AuthContextValue = {
@@ -38,9 +39,21 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     if (meQuery.isError) {
       setStoredToken(null);
       setToken(null);
+      clearTelemetryUserId();
       queryClient.removeQueries({ queryKey: ["auth", "me"] });
     }
   }, [meQuery.isError, queryClient]);
+
+  useEffect(() => {
+    if (meQuery.data) {
+      setTelemetryUserId(`user-${meQuery.data.id}`);
+      return;
+    }
+
+    if (!token) {
+      clearTelemetryUserId();
+    }
+  }, [meQuery.data, token]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -51,6 +64,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       setSession: (nextToken, user) => {
         setStoredToken(nextToken);
         setToken(nextToken);
+        setTelemetryUserId(`user-${user.id}`);
         queryClient.setQueryData(["auth", "me", nextToken], user);
       },
       updateUser: (user) => {
@@ -60,6 +74,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
       logout: () => {
         setStoredToken(null);
         setToken(null);
+        clearTelemetryUserId();
         queryClient.clear();
       },
     }),

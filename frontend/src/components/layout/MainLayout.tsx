@@ -63,12 +63,23 @@ export const MainLayout = () => {
     <div className="min-h-screen bg-background flex flex-col">
       <header className="sticky top-0 z-50 bg-gradient-to-r from-background via-background to-primary/5 backdrop-blur-sm border-b">
         <div className="flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => navigate("/dashboard")}>
+          <div
+            className="flex items-center gap-2.5 cursor-pointer"
+            data-telemetry-click="true"
+            data-telemetry-name="header-logo"
+            onClick={() => navigate("/dashboard")}
+          >
             <Disc3 className="w-6 h-6 text-primary" />
             <span className="text-base font-semibold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">TuneTribe</span>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 relative ${friendsManagerTab === 'requests' ? 'bg-accent text-accent-foreground' : ''}`} onClick={() => setFriendsManagerTab("requests")}>
+            <Button
+              aria-label="Open friend requests"
+              variant="ghost"
+              size="sm"
+              className={`h-9 w-9 p-0 relative ${friendsManagerTab === 'requests' ? 'bg-accent text-accent-foreground' : ''}`}
+              onClick={() => setFriendsManagerTab("requests")}
+            >
               <Bell className="w-5 h-5" />
               {pendingRequestCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-5 min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
@@ -76,13 +87,26 @@ export const MainLayout = () => {
                 </span>
               )}
             </Button>
-            <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 ${friendsManagerTab === 'friends' ? 'bg-accent text-accent-foreground' : ''}`} onClick={() => setFriendsManagerTab("friends")}>
+            <Button
+              aria-label="Open friends list"
+              variant="ghost"
+              size="sm"
+              className={`h-9 w-9 p-0 ${friendsManagerTab === 'friends' ? 'bg-accent text-accent-foreground' : ''}`}
+              onClick={() => setFriendsManagerTab("friends")}
+            >
               <Users className="w-4.5 h-4.5" />
             </Button>
-            <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 ${friendsManagerTab === 'search' ? 'bg-accent text-accent-foreground' : ''}`} onClick={() => setFriendsManagerTab("search")}>
+            <Button
+              aria-label="Search users"
+              variant="ghost"
+              size="sm"
+              className={`h-9 w-9 p-0 ${friendsManagerTab === 'search' ? 'bg-accent text-accent-foreground' : ''}`}
+              onClick={() => setFriendsManagerTab("search")}
+            >
               <UserPlus className="w-4.5 h-4.5" />
             </Button>
             <Button
+              aria-label="Open analytics"
               variant="ghost"
               size="sm"
               className={`h-9 w-9 p-0 ${location.pathname.startsWith('/analytics') ? 'bg-accent text-accent-foreground' : ''}`}
@@ -90,13 +114,20 @@ export const MainLayout = () => {
             >
               <BarChart3 className="w-4.5 h-4.5" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggleTheme}>
+            <Button aria-label="Toggle theme" variant="ghost" size="sm" className="h-9 w-9 p-0" onClick={toggleTheme}>
               {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
             </Button>
-            <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 ${location.pathname.startsWith('/profile') ? 'bg-accent text-accent-foreground' : ''}`} onClick={() => navigate("/profile")}>
+            <Button
+              aria-label="Open profile"
+              variant="ghost"
+              size="sm"
+              className={`h-9 w-9 p-0 ${location.pathname.startsWith('/profile') ? 'bg-accent text-accent-foreground' : ''}`}
+              onClick={() => navigate("/profile")}
+            >
               <UserCircle className="w-4.5 h-4.5" />
             </Button>
             <Button
+              aria-label="Log out"
               variant="ghost"
               size="sm"
               className="h-9 w-9 p-0"
