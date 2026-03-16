@@ -24,6 +24,10 @@ export type Friend = {
   friendshipStatus: "none" | "pending_outgoing" | "pending_incoming" | "accepted";
 };
 
+export type FriendLookupResponse = {
+  user: Friend | null;
+};
+
 export type FriendRequest = {
   id: number;
   fromUser: Friend;

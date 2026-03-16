@@ -8,6 +8,7 @@ from app.validation import (
     normalize_bio_text,
     normalize_optional_text,
     normalize_required_text,
+    normalize_username,
     validate_music_url,
     validate_profile_image_url,
 )
@@ -50,10 +51,7 @@ class RegisterRequest(APIModel):
     @field_validator("username")
     @classmethod
     def normalize_username(cls, value: str) -> str:
-        cleaned = value.strip().lower()
-        if not cleaned.replace("_", "").isalnum():
-            raise ValueError("Username may contain only letters, numbers, and underscores.")
-        return cleaned
+        return normalize_username(value)
 
     @field_validator("display_name")
     @classmethod
@@ -125,6 +123,19 @@ class FriendUser(APIModel):
     avatar_url: str | None = None
     is_friend: bool
     friendship_status: str = "none"
+
+
+class FriendLookupQuery(APIModel):
+    username: str = Field(min_length=3, max_length=25)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_lookup_username(cls, value: str) -> str:
+        return normalize_username(value, field_name="Username", allow_at_prefix=True)
+
+
+class FriendLookupResponse(APIModel):
+    user: FriendUser | None = None
 
 
 class FriendRequest(APIModel):

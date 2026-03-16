@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Users, Bell, Search, X, AlertTriangle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { toast } from "sonner";
 import type { Friend } from "@/lib/types";
 import { FriendsList } from "./FriendsManager/FriendsList";
@@ -18,6 +18,8 @@ type FriendsManagerProps = {
 export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManagerProps) => {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
+  const [submittedUsername, setSubmittedUsername] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
   const queryClient = useQueryClient();
 
@@ -34,10 +36,15 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
     queryFn: api.listFriends,
   });
 
-  const { data: searchResults = [] } = useQuery({
-    queryKey: ["friends", searchQuery],
-    queryFn: () => api.searchUsers(searchQuery),
-    enabled: activeTab === "search",
+  const {
+    data: searchResult = null,
+    isFetching: isSearching,
+    error: searchLookupError,
+  } = useQuery({
+    queryKey: ["friendLookup", submittedUsername],
+    queryFn: () => api.lookupUserByUsername(submittedUsername),
+    enabled: activeTab === "search" && submittedUsername.length > 0,
+    retry: false,
   });
 
   const { data: requests = [] } = useQuery({
@@ -54,7 +61,7 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
       } else {
         toast.success(`Friend request sent to @${friend.username}`);
       }
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
       void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
     },
@@ -66,7 +73,7 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
       toast.success(`You and @${friend.username} are now friends!`);
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
       void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
     },
   });
 
@@ -76,18 +83,20 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
       toast.success("Friend request declined");
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
       void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
     },
   });
 
   const removeFriendMutation = useMutation({
     mutationFn: (friendId: number) => api.removeFriend(friendId),
     onSuccess: (_, friendId) => {
-      const friend = friends.find((entry) => entry.id === friendId) || searchResults.find(entry => entry.id === friendId);
+      const friend =
+        friends.find((entry) => entry.id === friendId) ??
+        (searchResult?.id === friendId ? searchResult : null);
       toast.success(friend ? `Successfully removed @${friend.username} from friends` : "Friend removed successfully");
       setFriendToRemove(null);
       void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
       void queryClient.invalidateQueries({ queryKey: ["groups"] });
     },
@@ -100,8 +109,31 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
   const tabs = [
     { id: "friends", label: "My Friends", icon: Users },
     { id: "requests", label: "Requests", icon: Bell, badge: requests.length },
-    { id: "search", label: "Find Users", icon: Search },
+    { id: "search", label: "Find Friends", icon: Search },
   ];
+
+  const handleSearch = () => {
+    const normalizedQuery = searchQuery.trim();
+    if (normalizedQuery.replace(/^@/, "").length < 3) {
+      return;
+    }
+
+    setHasSearched(true);
+    setSubmittedUsername(normalizedQuery);
+  };
+
+  const handleSearchQueryChange = (query: string) => {
+    setSearchQuery(query);
+    setSubmittedUsername("");
+    setHasSearched(false);
+  };
+
+  const searchError =
+    searchLookupError instanceof ApiError
+      ? searchLookupError.message
+      : searchLookupError instanceof Error
+        ? searchLookupError.message
+        : null;
 
   return (
     <motion.div
@@ -204,9 +236,13 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                   {activeTab === "search" && (
                     <SearchUsers
                       searchQuery={searchQuery}
-                      setSearchQuery={setSearchQuery}
-                      searchResults={searchResults}
+                      setSearchQuery={handleSearchQueryChange}
+                      searchResult={searchResult}
+                      hasSearched={hasSearched}
+                      isSearching={isSearching}
+                      searchError={searchError}
                       requests={requests}
+                      onSearch={handleSearch}
                       onAddFriend={(id) => addFriendMutation.mutate(id)}
                       onAccept={(id) => acceptMutation.mutate(id)}
                     />

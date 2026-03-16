@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     run_startup_tasks_on_app_start: bool = True
     auth_rate_limit_max_attempts: int = 5
     auth_rate_limit_window_seconds: int = 300
+    friend_lookup_rate_limit_max_attempts: int = 20
+    friend_lookup_rate_limit_window_seconds: int = 60
     metadata_max_redirects: int = 3
     metadata_http_timeout_seconds: float = 10.0
     metadata_cache_ttl_seconds: int = 86400

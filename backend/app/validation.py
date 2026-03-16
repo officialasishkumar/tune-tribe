@@ -6,6 +6,22 @@ from urllib.parse import urlparse
 LOCAL_HTTP_HOSTS = {"localhost", "127.0.0.1"}
 
 
+def normalize_username(value: str, *, field_name: str = "Username", allow_at_prefix: bool = False) -> str:
+    cleaned = value.strip().lower()
+    if allow_at_prefix and cleaned.startswith("@"):
+        cleaned = cleaned[1:]
+
+    if not cleaned:
+        raise ValueError(f"{field_name} cannot be blank.")
+    if len(cleaned) < 3 or len(cleaned) > 24:
+        raise ValueError(f"{field_name} must be between 3 and 24 characters.")
+
+    _ensure_no_control_characters(cleaned, field_name=field_name)
+    if not cleaned.replace("_", "").isalnum():
+        raise ValueError(f"{field_name} may contain only letters, numbers, and underscores.")
+    return cleaned
+
+
 def normalize_required_text(value: str, *, field_name: str) -> str:
     cleaned = value.strip()
     if not cleaned:

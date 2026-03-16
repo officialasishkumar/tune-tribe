@@ -7,8 +7,8 @@ from typing import Literal
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import func, or_, select, delete
 from sqlalchemy.orm import Session, joinedload
 
 from app.bootstrap import run_startup_tasks
@@ -19,6 +19,8 @@ from app.http import install_security_middleware
 from app.models import Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
     AnalyticsResponse,
+    FriendLookupQuery,
+    FriendLookupResponse,
     FriendRequest,
     FriendUser,
     GlobalStatsResponse,
@@ -36,7 +38,7 @@ from app.security import create_access_token, hash_password, verify_password
 from app.services.analytics import build_analytics, filter_tracks_by_window
 from app.services.auth import find_user_by_identifier
 from app.services.metadata import SOURCE_LABELS, resolve_track
-from app.services.rate_limit import get_auth_rate_limiter
+from app.services.rate_limit import get_auth_rate_limiter, get_friend_lookup_rate_limiter
 
 
 AnalyticsWindow = Literal["7d", "30d", "90d", "all"]
@@ -170,49 +172,44 @@ def create_app() -> FastAPI:
         db.refresh(current_user)
         return _serialize_user(current_user)
 
-    @app.get("/api/friends", response_model=list[FriendUser])
-    def search_users(
-        q: str = Query(default="", max_length=50),
+    @app.get("/api/friends/lookup", response_model=FriendLookupResponse)
+    def lookup_friend_by_username(
+        request: Request,
+        params: FriendLookupQuery = Depends(),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-    ) -> list[FriendUser]:
-        cleaned_query = q.strip()
+    ) -> FriendLookupResponse:
+        limiter = get_friend_lookup_rate_limiter()
+        rate_limit_key = _build_friend_lookup_rate_limit_key(request, current_user.id)
+        rate_limit_decision = limiter.check(rate_limit_key)
+        if not rate_limit_decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many username lookups. Please wait and try again.",
+                headers={"Retry-After": str(rate_limit_decision.retry_after_seconds)},
+            )
+
+        limiter.record_attempt(rate_limit_key)
+        if params.username == current_user.username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot add yourself as a friend.")
+
         friend_ids = _accepted_friend_id_set(db, current_user.id)
         pending_outgoing = _pending_outgoing_set(db, current_user.id)
         pending_incoming = _pending_incoming_set(db, current_user.id)
-        users = db.scalars(
-            select(User)
-            .where(User.id != current_user.id)
-            .where(
-                or_(
-                    User.username.ilike(f"%{cleaned_query}%"),
-                    User.display_name.ilike(f"%{cleaned_query}%"),
-                )
+        user = db.scalar(
+            select(User).where(User.id != current_user.id, User.username == params.username)
+        )
+        if user is None:
+            return FriendLookupResponse(user=None)
+
+        return FriendLookupResponse(
+            user=_serialize_friend_user(
+                user,
+                friend_ids=friend_ids,
+                pending_outgoing=pending_outgoing,
+                pending_incoming=pending_incoming,
             )
-            .order_by(User.display_name.asc())
-            .limit(20)
-        ).all()
-        results = []
-        for user in users:
-            if user.id in friend_ids:
-                fs = "accepted"
-            elif user.id in pending_outgoing:
-                fs = "pending_outgoing"
-            elif user.id in pending_incoming:
-                fs = "pending_incoming"
-            else:
-                fs = "none"
-            results.append(
-                FriendUser(
-                    id=user.id,
-                    username=user.username,
-                    display_name=user.display_name,
-                    avatar_url=user.avatar_url,
-                    is_friend=user.id in friend_ids,
-                    friendship_status=fs,
-                )
-            )
-        return results
+        )
 
     @app.get("/api/friends/list", response_model=list[FriendUser])
     def list_friends(
@@ -228,14 +225,7 @@ def create_app() -> FastAPI:
             .order_by(User.display_name.asc())
         ).all()
         return [
-            FriendUser(
-                id=user.id,
-                username=user.username,
-                display_name=user.display_name,
-                avatar_url=user.avatar_url,
-                is_friend=True,
-                friendship_status="accepted",
-            )
+            _serialize_friend_user(user, friend_ids=friend_ids)
             for user in users
         ]
 
@@ -559,6 +549,34 @@ def _token_response_for_user(user: User) -> TokenResponse:
     return TokenResponse(access_token=token, user=_serialize_user(user))
 
 
+def _serialize_friend_user(
+    user: User,
+    *,
+    friend_ids: set[int],
+    pending_outgoing: set[int] | None = None,
+    pending_incoming: set[int] | None = None,
+) -> FriendUser:
+    outgoing_ids = pending_outgoing or set()
+    incoming_ids = pending_incoming or set()
+
+    friendship_status = "none"
+    if user.id in friend_ids:
+        friendship_status = "accepted"
+    elif user.id in outgoing_ids:
+        friendship_status = "pending_outgoing"
+    elif user.id in incoming_ids:
+        friendship_status = "pending_incoming"
+
+    return FriendUser(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        is_friend=user.id in friend_ids,
+        friendship_status=friendship_status,
+    )
+
+
 def _accepted_friend_id_set(db: Session, user_id: int) -> set[int]:
     rows = db.scalars(
         select(Friendship.friend_id).where(Friendship.user_id == user_id, Friendship.status == "accepted")
@@ -632,3 +650,8 @@ def _ensure_aware(value: datetime) -> datetime:
 def _build_auth_rate_limit_key(request: Request, identifier: str) -> str:
     client_host = request.client.host if request.client is not None else "unknown"
     return f"{client_host}:{identifier.strip().lower()}"
+
+
+def _build_friend_lookup_rate_limit_key(request: Request, user_id: int) -> str:
+    client_host = request.client.host if request.client is not None else "unknown"
+    return f"{user_id}:{client_host}"

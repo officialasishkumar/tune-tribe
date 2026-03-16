@@ -24,7 +24,7 @@ export const FriendRequestsPanel = ({ onClose }: FriendRequestsPanelProps) => {
     onSuccess: (friend) => {
       toast.success(`You and @${friend.username} are now friends!`);
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
     },
   });
 
@@ -33,7 +33,7 @@ export const FriendRequestsPanel = ({ onClose }: FriendRequestsPanelProps) => {
     onSuccess: () => {
       toast.success("Friend request declined");
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
     },
   });
 

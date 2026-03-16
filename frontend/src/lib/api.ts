@@ -2,6 +2,7 @@ import type {
   Analytics,
   AuthResponse,
   Friend,
+  FriendLookupResponse,
   FriendRequest,
   GlobalStatsResponse,
   GroupSummary,
@@ -177,8 +178,12 @@ export const api = {
     apiRequest<Analytics>(`/api/groups/${groupId}/analytics?window=${encodeURIComponent(window)}`),
   getPersonalAnalytics: (window: string) =>
     apiRequest<Analytics>(`/api/analytics/me?window=${encodeURIComponent(window)}`),
-  searchUsers: (query: string) =>
-    apiRequest<Friend[]>(`/api/friends?q=${encodeURIComponent(query)}`),
+  lookupUserByUsername: async (username: string) => {
+    const response = await apiRequest<FriendLookupResponse>(
+      `/api/friends/lookup?username=${encodeURIComponent(username)}`
+    );
+    return response.user;
+  },
   listFriends: () =>
     apiRequest<Friend[]>("/api/friends/list"),
   addFriend: (friendId: number) =>
