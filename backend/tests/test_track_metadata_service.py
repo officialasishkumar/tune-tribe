@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.models import Base
+from app.services.shared_cache import CacheStore, MemoryCacheBackend
 from app.services.track_metadata.cache import InMemoryMetadataCache, LayeredMetadataCache
+from app.services.track_metadata.cache import SharedMetadataCache
 from app.services.track_metadata.domain import ResolvedTrack, TrackSource
 from app.services.track_metadata.service import TrackMetadataResolver
 
@@ -102,5 +104,42 @@ def test_resolver_uses_persistent_cache_before_calling_provider() -> None:
         db.commit()
 
     assert cached_track.album == "Hurry Up, We're Dreaming"
+    assert first_provider.calls == 1
+    assert second_provider.calls == 0
+
+
+def test_resolver_uses_shared_cache_before_calling_provider() -> None:
+    shared_cache = SharedMetadataCache(
+        store=CacheStore(backend=MemoryCacheBackend(), namespace="test"),
+    )
+
+    first_provider = FakeProvider()
+    first_resolver = TrackMetadataResolver(
+        providers={TrackSource.SPOTIFY: first_provider},
+        cache=LayeredMetadataCache(
+            ttl_seconds=3600,
+            hot_cache=InMemoryMetadataCache(max_entries=8),
+            shared_cache=shared_cache,
+        ),
+        client_factory=DummyAsyncClient,
+        enricher=None,
+    )
+    asyncio.run(first_resolver.resolve("https://open.spotify.com/track/abc123"))
+
+    second_provider = FakeProvider()
+    second_resolver = TrackMetadataResolver(
+        providers={TrackSource.SPOTIFY: second_provider},
+        cache=LayeredMetadataCache(
+            ttl_seconds=3600,
+            hot_cache=InMemoryMetadataCache(max_entries=8),
+            shared_cache=shared_cache,
+        ),
+        client_factory=DummyAsyncClient,
+        enricher=None,
+    )
+
+    cached_track = asyncio.run(second_resolver.resolve("https://open.spotify.com/track/abc123"))
+
+    assert cached_track.title == "Midnight City"
     assert first_provider.calls == 1
     assert second_provider.calls == 0

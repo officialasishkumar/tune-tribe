@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from dataclasses import asdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from threading import Lock
@@ -9,6 +10,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models import TrackMetadataCacheEntry
+from app.services.shared_cache import CacheStore
 from app.services.track_metadata.domain import MetadataLookup, ResolvedTrack
 
 
@@ -55,22 +57,68 @@ class InMemoryMetadataCache:
                 self._entries.popitem(last=False)
 
 
+class SharedMetadataCache:
+    def __init__(self, *, store: CacheStore, now_provider=utcnow) -> None:
+        self.store = store
+        self.now_provider = now_provider
+
+    def get(self, cache_key: str) -> tuple[ResolvedTrack, datetime] | None:
+        payload = self.store.get_json("track-metadata", cache_key)
+        if payload is None:
+            return None
+
+        expires_at_raw = payload.get("expires_at")
+        track_payload = payload.get("track")
+        if not isinstance(expires_at_raw, str) or not isinstance(track_payload, dict):
+            self.store.delete("track-metadata", cache_key)
+            return None
+
+        expires_at = ensure_aware(datetime.fromisoformat(expires_at_raw))
+        if expires_at <= self.now_provider():
+            self.store.delete("track-metadata", cache_key)
+            return None
+
+        return ResolvedTrack(**track_payload), expires_at
+
+    def set(self, cache_key: str, track: ResolvedTrack, expires_at: datetime) -> None:
+        normalized_expires_at = ensure_aware(expires_at)
+        ttl_seconds = max(1, int((normalized_expires_at - self.now_provider()).total_seconds()))
+        self.store.set_json(
+            "track-metadata",
+            cache_key,
+            value={
+                "expires_at": normalized_expires_at.isoformat(),
+                "track": asdict(track),
+            },
+            ttl_seconds=ttl_seconds,
+        )
+
+
 class LayeredMetadataCache:
     def __init__(
         self,
         *,
         ttl_seconds: int,
         hot_cache: InMemoryMetadataCache,
+        shared_cache: SharedMetadataCache | None = None,
         now_provider=utcnow,
     ) -> None:
         self.ttl_seconds = ttl_seconds
         self.hot_cache = hot_cache
+        self.shared_cache = shared_cache
         self.now_provider = now_provider
 
     def get(self, lookup: MetadataLookup, db: Session | None = None) -> ResolvedTrack | None:
         hot_track = self.hot_cache.get(lookup.cache_key)
         if hot_track is not None:
             return hot_track
+
+        if self.shared_cache is not None:
+            shared_hit = self.shared_cache.get(lookup.cache_key)
+            if shared_hit is not None:
+                track, expires_at = shared_hit
+                self.hot_cache.set(lookup.cache_key, track, expires_at)
+                return track
 
         if db is None:
             return None
@@ -92,12 +140,16 @@ class LayeredMetadataCache:
 
         track = _entry_to_track(entry)
         self.hot_cache.set(lookup.cache_key, track, ensure_aware(entry.expires_at))
+        if self.shared_cache is not None:
+            self.shared_cache.set(lookup.cache_key, track, ensure_aware(entry.expires_at))
         return track
 
     def set(self, lookup: MetadataLookup, track: ResolvedTrack, db: Session | None = None) -> None:
         now = self.now_provider()
         expires_at = now + timedelta(seconds=self.ttl_seconds)
         self.hot_cache.set(lookup.cache_key, track, expires_at)
+        if self.shared_cache is not None:
+            self.shared_cache.set(lookup.cache_key, track, expires_at)
 
         if db is None:
             return

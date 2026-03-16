@@ -36,6 +36,7 @@ from app.schemas import (
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.analytics import build_analytics, filter_tracks_by_window
+from app.services.api_cache import get_api_response_cache
 from app.services.auth import find_user_by_identifier
 from app.services.metadata import SOURCE_LABELS, resolve_track
 from app.services.rate_limit import get_auth_rate_limiter, get_friend_lookup_rate_limiter
@@ -76,14 +77,21 @@ def create_app() -> FastAPI:
 
     @app.get("/api/stats", response_model=GlobalStatsResponse)
     def get_global_stats(db: Session = Depends(get_db)) -> GlobalStatsResponse:
+        api_cache = get_api_response_cache()
+        cached_response = api_cache.get_global_stats()
+        if cached_response is not None:
+            return cached_response
+
         groups_created = db.scalar(select(func.count(Group.id))) or 0
         tracks_shared = db.scalar(select(func.count(TrackShare.id))) or 0
         active_members = db.scalar(select(func.count(User.id))) or 0
-        return GlobalStatsResponse(
+        response = GlobalStatsResponse(
             groups_created=groups_created,
             tracks_shared=tracks_shared,
             active_members=active_members
         )
+        api_cache.set_global_stats(response)
+        return response
 
     @app.post("/api/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
     def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
@@ -122,6 +130,7 @@ def create_app() -> FastAPI:
             ) from exc
 
         db.refresh(user)
+        get_api_response_cache().invalidate_global_stats()
 
         return _token_response_for_user(user)
 
@@ -437,6 +446,7 @@ def create_app() -> FastAPI:
             .where(Group.id == group.id)
             .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
         )
+        get_api_response_cache().invalidate_global_stats()
         return _serialize_group(group, current_user.id)
 
     @app.delete("/api/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -448,8 +458,16 @@ def create_app() -> FastAPI:
         group = db.scalar(select(Group).where(Group.id == group_id, Group.owner_id == current_user.id))
         if group is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found or you don't have permission.")
+        affected_user_ids = db.scalars(
+            select(TrackShare.shared_by_id).where(TrackShare.group_id == group_id).distinct()
+        ).all()
         db.delete(group)
         db.commit()
+        api_cache = get_api_response_cache()
+        api_cache.invalidate_global_stats()
+        api_cache.invalidate_group_analytics(group_id)
+        for user_id in affected_user_ids:
+            api_cache.invalidate_personal_analytics(user_id)
 
     @app.get("/api/groups/{group_id}/tracks", response_model=list[TrackSummary])
     def list_group_tracks(
@@ -493,6 +511,10 @@ def create_app() -> FastAPI:
         db.commit()
         db.refresh(track)
         track = db.scalar(select(TrackShare).where(TrackShare.id == track.id).options(joinedload(TrackShare.shared_by)))
+        api_cache = get_api_response_cache()
+        api_cache.invalidate_global_stats()
+        api_cache.invalidate_group_analytics(group.id)
+        api_cache.invalidate_personal_analytics(current_user.id)
         return _serialize_track(track)
 
     @app.get("/api/groups/{group_id}/analytics", response_model=AnalyticsResponse)
@@ -503,13 +525,20 @@ def create_app() -> FastAPI:
         current_user: User = Depends(get_current_user),
     ) -> AnalyticsResponse:
         group = _get_accessible_group(db, group_id, current_user.id)
+        api_cache = get_api_response_cache()
+        cached_response = api_cache.get_group_analytics(group_id=group.id, window=window)
+        if cached_response is not None:
+            return cached_response
+
         tracks = db.scalars(
             select(TrackShare)
             .where(TrackShare.group_id == group.id)
             .options(joinedload(TrackShare.shared_by))
             .order_by(TrackShare.shared_at.desc())
         ).all()
-        return build_analytics(filter_tracks_by_window(tracks, window))
+        response = build_analytics(filter_tracks_by_window(tracks, window))
+        api_cache.set_group_analytics(group_id=group.id, window=window, response=response)
+        return response
 
     @app.get("/api/analytics/me", response_model=AnalyticsResponse)
     def personal_analytics(
@@ -517,13 +546,20 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> AnalyticsResponse:
+        api_cache = get_api_response_cache()
+        cached_response = api_cache.get_personal_analytics(user_id=current_user.id, window=window)
+        if cached_response is not None:
+            return cached_response
+
         tracks = db.scalars(
             select(TrackShare)
             .where(TrackShare.shared_by_id == current_user.id)
             .options(joinedload(TrackShare.shared_by))
             .order_by(TrackShare.shared_at.desc())
         ).all()
-        return build_analytics(filter_tracks_by_window(tracks, window))
+        response = build_analytics(filter_tracks_by_window(tracks, window))
+        api_cache.set_personal_analytics(user_id=current_user.id, window=window, response=response)
+        return response
 
     return app
 

@@ -31,6 +31,7 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
     queryKey: ["auth", "me", token],
     queryFn: api.me,
     enabled: Boolean(token),
+    staleTime: 60_000,
     retry: false,
   });
 

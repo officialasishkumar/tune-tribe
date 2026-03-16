@@ -8,7 +8,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.services.shared_cache import get_cache_store
 from app.services.track_metadata.cache import InMemoryMetadataCache, LayeredMetadataCache
+from app.services.track_metadata.cache import SharedMetadataCache
 from app.services.track_metadata.domain import ResolvedTrack, TrackSource
 from app.services.track_metadata.enrichment import ItunesMetadataEnricher
 from app.services.track_metadata.parsers import build_metadata_lookup
@@ -121,6 +123,7 @@ def get_track_metadata_resolver() -> TrackMetadataResolver:
         cache=LayeredMetadataCache(
             ttl_seconds=settings.metadata_cache_ttl_seconds,
             hot_cache=InMemoryMetadataCache(max_entries=settings.metadata_memory_cache_max_entries),
+            shared_cache=SharedMetadataCache(store=get_cache_store()),
         ),
         client_factory=MetadataHttpClientFactory(timeout_seconds=settings.metadata_http_timeout_seconds),
         enricher=ItunesMetadataEnricher(),
