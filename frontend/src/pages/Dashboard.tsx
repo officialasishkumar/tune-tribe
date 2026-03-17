@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight } from "lucide-react";
+import { Bell, BellOff, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { Group } from "@/components/GroupCard";
@@ -14,6 +14,7 @@ import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
 import { toast } from "sonner";
 import { useAppContext } from "@/lib/app-context";
+import { useGroupNotifications } from "@/hooks/use-group-notifications";
 import { DashboardSidebar } from "./Dashboard/DashboardSidebar";
 import { DashboardAnalytics } from "./Dashboard/DashboardAnalytics";
 
@@ -22,8 +23,20 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
+    typeof Notification !== "undefined" ? Notification.permission : "denied",
+  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  // Re-sync permission when the tab regains focus (user may have changed
+  // browser settings while the app was in the background).
+  useEffect(() => {
+    if (typeof Notification === "undefined") return;
+    const syncPermission = () => setNotifPermission(Notification.permission);
+    window.addEventListener("focus", syncPermission);
+    return () => window.removeEventListener("focus", syncPermission);
+  }, []);
 
   const groupsQuery = useQuery({
     queryKey: ["groups"],
@@ -58,6 +71,8 @@ const Dashboard = () => {
     queryKey: ["group", activeGroup, "tracks"],
     queryFn: () => api.listGroupTracks(activeGroup as number),
     enabled: Boolean(activeGroup),
+    // Poll every 30 seconds so members see tracks added by others without a manual refresh.
+    refetchInterval: 30_000,
   });
 
   const analyticsQuery = useQuery({
@@ -127,6 +142,19 @@ const Dashboard = () => {
       sharedAt: track.sharedAt,
     })
   );
+
+  // Fire browser notifications for new tracks posted by other members.
+  useGroupNotifications(tracks, activeGroupSummary?.name ?? null, activeGroup);
+
+  const handleRequestNotifPermission = () => {
+    if (typeof Notification === "undefined") return;
+    void Notification.requestPermission().then((perm) => {
+      setNotifPermission(perm);
+      if (perm === "granted") {
+        toast.success("Browser notifications enabled");
+      }
+    });
+  };
   const chartData = analyticsQuery.data;
   const weeklyTotal = chartData?.weeklyActivity.reduce((sum, entry) => sum + entry.tracks, 0) ?? 0;
   const topGenre = chartData?.genreDistribution[0]?.name ?? "N/A";
@@ -158,14 +186,46 @@ const Dashboard = () => {
               </p>
             </div>
             {activeGroup && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-sm gap-1 text-muted-foreground"
-                onClick={() => navigate(`/analytics?groupId=${activeGroup}`)}
-              >
-                Analytics <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                {typeof Notification !== "undefined" && notifPermission === "default" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    title="Enable notifications for new tracks"
+                    className="text-sm gap-1 text-muted-foreground"
+                    onClick={handleRequestNotifPermission}
+                  >
+                    <Bell className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Notify me</span>
+                  </Button>
+                )}
+                {typeof Notification !== "undefined" && notifPermission === "denied" && (
+                  <span
+                    title="Notifications blocked – enable them in your browser settings"
+                    className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 cursor-default"
+                  >
+                    <BellOff className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Notifications off</span>
+                  </span>
+                )}
+                {typeof Notification !== "undefined" && notifPermission === "granted" && (
+                  <span
+                    title="Browser notifications enabled"
+                    className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 cursor-default"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-primary" />
+                    <span className="hidden sm:inline">Notifications on</span>
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-sm gap-1 text-muted-foreground"
+                  onClick={() => navigate(`/analytics?groupId=${activeGroup}`)}
+                >
+                  Analytics <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             )}
           </div>
 
