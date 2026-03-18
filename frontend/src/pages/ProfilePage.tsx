@@ -124,29 +124,6 @@ const ProfilePage = () => {
           onAvatarClick={() => setShowAvatarPicker(true)} 
         />
 
-        {profileQuery.data ? (
-          <section>
-            <div className="flex items-center gap-2 mb-6">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">Account Activity</h2>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="grid grid-cols-2 lg:grid-cols-4 gap-4"
-            >
-              <StatCard label="Member since" value={formatRelativeTime(profileQuery.data.createdAt)} />
-              <StatCard label="Last login" value={formatRelativeTime(profileQuery.data.lastLoginAt)} />
-              <StatCard label="Sign-ins" value={String(profileQuery.data.loginCount)} />
-              <StatCard
-                label="Profile refresh"
-                value={formatRelativeTime(profileQuery.data.profileUpdatedAt ?? profileQuery.data.createdAt)}
-              />
-            </motion.div>
-          </section>
-        ) : null}
-
         <section>
           <div className="flex items-center gap-2 mb-6">
             <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">Recent Activity</h2>
