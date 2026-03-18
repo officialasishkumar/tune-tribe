@@ -278,7 +278,7 @@ const Dashboard = () => {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="px-3 pb-3 overflow-hidden"
+                  className="px-3 pb-3 pt-1 overflow-hidden"
                 >
                   <Input
                     placeholder="Filter by song, artist, @username, genre, or platform..."
