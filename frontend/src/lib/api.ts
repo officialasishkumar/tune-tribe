@@ -173,6 +173,10 @@ export const api = {
     apiRequest<void>(`/api/groups/${groupId}/members/${userId}`, {
       method: "DELETE",
     }),
+  removeGroupTrack: (groupId: number, trackId: number) =>
+    apiRequest<void>(`/api/groups/${groupId}/tracks/${trackId}`, {
+      method: "DELETE",
+    }),
   deleteGroup: (groupId: number) =>
     apiRequest<void>(`/api/groups/${groupId}`, {
       method: "DELETE",

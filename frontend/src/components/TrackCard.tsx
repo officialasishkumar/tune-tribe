@@ -1,6 +1,6 @@
 import { SourceBadge } from "./SourceBadge";
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Trash2 } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
@@ -9,9 +9,10 @@ type TrackCardProps = {
   track: Track;
   index?: number;
   onClick?: () => void;
+  onDelete?: (e: React.MouseEvent) => void;
 };
 
-export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
+export const TrackCard = ({ track, index = 0, onClick, onDelete }: TrackCardProps) => {
   return (
     <motion.button
       type="button"
@@ -52,6 +53,19 @@ export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
       <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60 whitespace-nowrap">
         {formatRelativeTime(track.sharedAt)}
       </span>
+
+      {onDelete && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(e);
+          }}
+          className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 cursor-pointer"
+          title="Remove track"
+        >
+          <Trash2 className="h-4 w-4" />
+        </div>
+      )}
 
       <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
     </motion.button>

@@ -15,11 +15,13 @@ import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
 import { toast } from "sonner";
 import { useAppContext } from "@/lib/app-context";
+import { useAuth } from "@/lib/auth";
 import { useGroupNotifications } from "@/hooks/use-group-notifications";
 import { DashboardSidebar } from "./Dashboard/DashboardSidebar";
 import { DashboardAnalytics } from "./Dashboard/DashboardAnalytics";
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const { activeGroup, setActiveGroup, setShowCreateGroup } = useAppContext();
   const [searchQuery, setSearchQuery] = useState("");
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
@@ -92,6 +94,18 @@ const Dashboard = () => {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Track lookup failed.");
+    },
+  });
+
+  const deleteTrackMutation = useMutation({
+    mutationFn: (trackId: number) => api.removeGroupTrack(activeGroup as number, trackId),
+    onSuccess: () => {
+      toast.success("Track removed from group");
+      void queryClient.invalidateQueries({ queryKey: ["group", activeGroup] });
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to remove track");
     },
   });
 
@@ -239,6 +253,11 @@ const Dashboard = () => {
                   track={track}
                   index={index}
                   onClick={() => setSelectedTrack(track)}
+                  onDelete={(activeGroupSummary?.isOwner || user?.username === track.sharedBy) ? () => {
+                    if (window.confirm(`Are you sure you want to remove '${track.title}'?`)) {
+                      deleteTrackMutation.mutate(Number(track.id));
+                    }
+                  } : undefined}
                 />
               ))
             )}

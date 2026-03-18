@@ -545,6 +545,25 @@ def create_app() -> FastAPI:
         track = db.scalar(select(TrackShare).where(TrackShare.id == track.id).options(joinedload(TrackShare.shared_by)))
         return _serialize_track(track)
 
+    @app.delete("/api/groups/{group_id}/tracks/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def remove_group_track(
+        group_id: int,
+        track_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        group = _get_accessible_group(db, group_id, current_user.id)
+        
+        track = db.scalar(select(TrackShare).where(TrackShare.id == track_id, TrackShare.group_id == group.id))
+        if track is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Track not found in group.")
+            
+        if track.shared_by_id != current_user.id and group.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to remove this track.")
+            
+        db.delete(track)
+        db.commit()
+
     @app.get("/api/tracks/feed", response_model=list[TrackSummary])
     def get_tracks_feed(
         db: Session = Depends(get_db),

@@ -135,7 +135,11 @@ export const ManageGroupMembersModal = ({ group, onClose }: ManageGroupMembersMo
                           variant="ghost"
                           size="sm"
                           className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeMemberMutation.mutate(member.id)}
+                          onClick={() => {
+                            if (window.confirm(isCurrentUser(member.username) ? "Are you sure you want to leave this group?" : `Are you sure you want to remove @${member.username}?`)) {
+                              removeMemberMutation.mutate(member.id);
+                            }
+                          }}
                           disabled={removeMemberMutation.isPending}
                         >
                           {isCurrentUser(member.username) ? "Leave" : <><UserMinus className="w-3.5 h-3.5 mr-1" /> Remove</>}
