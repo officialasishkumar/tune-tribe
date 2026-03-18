@@ -12,8 +12,11 @@ import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { useAppContext } from "@/lib/app-context";
+import { useTrackNotifications } from "@/hooks/use-track-notifications";
 
 export const MainLayout = () => {
+  useTrackNotifications();
+
   const [friendsManagerTab, setFriendsManagerTab] = useState<"friends" | "requests" | "search" | null>(null);
   
   const { isDark, toggle: toggleTheme } = useTheme();

@@ -169,6 +169,7 @@ export const api = {
       method: "DELETE",
     }),
   listGroupTracks: (groupId: number) => apiRequest<Track[]>(`/api/groups/${groupId}/tracks`),
+  getTracksFeed: () => apiRequest<Track[]>("/api/tracks/feed"),
   addTrack: (groupId: number, url: string) =>
     apiRequest<Track>(`/api/groups/${groupId}/tracks`, {
       method: "POST",

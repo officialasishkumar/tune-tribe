@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Bell, Search, X, AlertTriangle } from "lucide-react";
+import { Users, Bell, Search, X, AlertTriangle, BellOff, BellRing } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ApiError, api } from "@/lib/api";
@@ -22,6 +22,26 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
   const [hasSearched, setHasSearched] = useState(false);
   const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
   const queryClient = useQueryClient();
+
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    "Notification" in window ? Notification.permission : "denied"
+  );
+
+  const requestNotificationPermission = async () => {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        toast.info("Notifications are already enabled.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === "granted") {
+        toast.success("Notifications enabled!");
+      } else if (permission === "denied") {
+        toast.error("Notifications were denied.");
+      }
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -201,9 +221,24 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                   </button>
                 ))}
               </div>
-              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mb-2">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3 mb-2">
+                {"Notification" in window && (
+                  <button
+                    onClick={requestNotificationPermission}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    title={notificationPermission === "granted" ? "Notifications Enabled" : "Enable Notifications"}
+                  >
+                    {notificationPermission === "granted" ? (
+                      <BellRing className="w-5 h-5 text-primary" />
+                    ) : (
+                      <BellOff className="w-5 h-5" />
+                    )}
+                  </button>
+                )}
+                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="max-h-80 overflow-y-auto">

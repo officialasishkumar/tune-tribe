@@ -495,6 +495,22 @@ def create_app() -> FastAPI:
         track = db.scalar(select(TrackShare).where(TrackShare.id == track.id).options(joinedload(TrackShare.shared_by)))
         return _serialize_track(track)
 
+    @app.get("/api/tracks/feed", response_model=list[TrackSummary])
+    def get_tracks_feed(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[TrackSummary]:
+        tracks = db.scalars(
+            select(TrackShare)
+            .join(Group, Group.id == TrackShare.group_id)
+            .join(GroupMembership, GroupMembership.group_id == Group.id)
+            .where(GroupMembership.user_id == current_user.id)
+            .options(joinedload(TrackShare.shared_by))
+            .order_by(TrackShare.shared_at.desc())
+            .limit(50)
+        ).all()
+        return [_serialize_track(track) for track in tracks]
+
     @app.get("/api/groups/{group_id}/analytics", response_model=AnalyticsResponse)
     def group_analytics(
         group_id: int,
