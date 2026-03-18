@@ -491,14 +491,26 @@ def create_app() -> FastAPI:
         if user_id != current_user.id and group.owner_id != current_user.id:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to remove this member.")
             
-        if user_id == group.owner_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the group owner.")
-
         membership = db.scalar(select(GroupMembership).where(GroupMembership.group_id == group.id, GroupMembership.user_id == user_id))
         if membership is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found in group.")
 
-        db.delete(membership)
+        if user_id == group.owner_id:
+            next_member = db.scalar(
+                select(GroupMembership)
+                .where(GroupMembership.group_id == group.id, GroupMembership.user_id != user_id)
+                .order_by(GroupMembership.created_at.asc())
+            )
+            
+            if next_member:
+                group.owner_id = next_member.user_id
+                next_member.role = "owner"
+                db.delete(membership)
+            else:
+                db.delete(group)
+        else:
+            db.delete(membership)
+            
         db.commit()
 
     @app.get("/api/groups/{group_id}/tracks", response_model=list[TrackSummary])
