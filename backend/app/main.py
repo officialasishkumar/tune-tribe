@@ -24,6 +24,7 @@ from app.schemas import (
     FriendRequest,
     FriendUser,
     GlobalStatsResponse,
+    GroupAddMembersRequest,
     GroupCreateRequest,
     GroupSummary,
     LoginRequest,
@@ -451,6 +452,55 @@ def create_app() -> FastAPI:
         db.delete(group)
         db.commit()
 
+    @app.post("/api/groups/{group_id}/members", response_model=GroupSummary)
+    def add_group_members(
+        group_id: int,
+        payload: GroupAddMembersRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> GroupSummary:
+        group = _get_accessible_group(db, group_id, current_user.id)
+        
+        existing_member_ids = {m.user_id for m in group.memberships}
+        new_member_ids = {m_id for m_id in payload.member_ids if m_id not in existing_member_ids}
+        
+        if new_member_ids:
+            users = db.scalars(select(User).where(User.id.in_(new_member_ids))).all()
+            valid_ids = {user.id for user in users}
+            for member_id in valid_ids:
+                db.add(GroupMembership(group_id=group.id, user_id=member_id, role="member"))
+            db.commit()
+            db.refresh(group)
+            group = db.scalar(
+                select(Group)
+                .where(Group.id == group.id)
+                .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
+            )
+
+        return _serialize_group(group, current_user.id)
+
+    @app.delete("/api/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def remove_group_member(
+        group_id: int,
+        user_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        group = _get_accessible_group(db, group_id, current_user.id)
+
+        if user_id != current_user.id and group.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to remove this member.")
+            
+        if user_id == group.owner_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove the group owner.")
+
+        membership = db.scalar(select(GroupMembership).where(GroupMembership.group_id == group.id, GroupMembership.user_id == user_id))
+        if membership is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found in group.")
+
+        db.delete(membership)
+        db.commit()
+
     @app.get("/api/groups/{group_id}/tracks", response_model=list[TrackSummary])
     def list_group_tracks(
         group_id: int,
@@ -625,6 +675,7 @@ def _serialize_group(group: Group, current_user_id: int) -> GroupSummary:
         track_count=len(group.tracks),
         last_active_at=last_active_at,
         members=[membership.user.username for membership in group.memberships],
+        member_details=[{"id": m.user.id, "username": m.user.username} for m in group.memberships],
         is_owner=group.owner_id == current_user_id,
     )
 

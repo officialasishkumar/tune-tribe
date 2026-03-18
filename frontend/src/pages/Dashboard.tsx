@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, ChevronRight } from "lucide-react";
+import { Bell, BellOff, ChevronRight, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import type { Group } from "@/components/GroupCard";
 import { TrackCard } from "@/components/TrackCard";
 import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
+import { ManageGroupMembersModal } from "@/components/ManageGroupMembersModal";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
@@ -23,6 +24,7 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
+  const [showManageMembers, setShowManageMembers] = useState(false);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied",
   );
@@ -121,6 +123,7 @@ const Dashboard = () => {
           trackCount: group.trackCount,
           lastActive: formatRelativeTime(group.lastActiveAt),
           members: group.members,
+          memberDetails: group.memberDetails,
           isOwner: group.isOwner,
         })),
     [groupsQuery.data, searchQuery]
@@ -191,6 +194,14 @@ const Dashboard = () => {
                   variant="ghost"
                   size="sm"
                   className="text-sm gap-1 text-muted-foreground"
+                  onClick={() => setShowManageMembers(true)}
+                >
+                  <Users className="w-3.5 h-3.5" /> Members
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-sm gap-1 text-muted-foreground"
                   onClick={() => navigate(`/analytics?groupId=${activeGroup}`)}
                 >
                   Analytics <ChevronRight className="w-3.5 h-3.5" />
@@ -245,6 +256,15 @@ const Dashboard = () => {
 
       <AnimatePresence>
         {selectedTrack && <TrackDetailsModal track={selectedTrack} onClose={() => setSelectedTrack(null)} />}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showManageMembers && activeGroupSummary && (
+          <ManageGroupMembersModal
+            group={filteredGroups.find(g => g.id === activeGroup) || { ...activeGroupSummary, id: activeGroupSummary.id, lastActive: "", memberDetails: activeGroupSummary.memberDetails }}
+            onClose={() => setShowManageMembers(false)}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>

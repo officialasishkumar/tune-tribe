@@ -167,6 +167,28 @@ class GroupCreateRequest(APIModel):
         return deduplicated
 
 
+class GroupAddMembersRequest(APIModel):
+    member_ids: list[int] = Field(min_length=1)
+
+    @field_validator("member_ids")
+    @classmethod
+    def normalize_member_ids(cls, value: list[int]) -> list[int]:
+        deduplicated: list[int] = []
+        seen: set[int] = set()
+        for member_id in value:
+            if member_id <= 0:
+                raise ValueError("Member IDs must be positive integers.")
+            if member_id not in seen:
+                seen.add(member_id)
+                deduplicated.append(member_id)
+        return deduplicated
+
+
+class GroupMember(APIModel):
+    id: int
+    username: str
+
+
 class GroupSummary(APIModel):
     id: int
     name: str
@@ -174,6 +196,7 @@ class GroupSummary(APIModel):
     track_count: int
     last_active_at: datetime | None
     members: list[str]
+    member_details: list[GroupMember] = Field(default_factory=list)
     is_owner: bool = False
 
 

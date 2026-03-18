@@ -41,6 +41,7 @@ export type GroupSummary = {
   trackCount: number;
   lastActiveAt?: string | null;
   members: string[];
+  memberDetails?: { id: number; username: string }[];
   isOwner?: boolean;
 };
 

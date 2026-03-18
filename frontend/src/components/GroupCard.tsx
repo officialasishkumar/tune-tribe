@@ -8,6 +8,7 @@ export type Group = {
   trackCount: number;
   lastActive: string;
   members: string[];
+  memberDetails?: { id: number; username: string }[];
   isOwner?: boolean;
 };
 
