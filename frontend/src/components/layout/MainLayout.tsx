@@ -20,7 +20,7 @@ export const MainLayout = () => {
   const [friendsManagerTab, setFriendsManagerTab] = useState<"friends" | "requests" | "search" | null>(null);
   
   const { isDark, toggle: toggleTheme } = useTheme();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
@@ -59,7 +59,15 @@ export const MainLayout = () => {
       path: activeGroup ? `/analytics?groupId=${activeGroup}` : "/analytics",
       matchPath: "/analytics"
     },
-    { icon: UserCircle, label: "Profile", path: "/profile" },
+    { 
+      label: "Profile", 
+      path: "/profile",
+      icon: user?.avatarUrl ? () => (
+        <div className="w-5 h-5 rounded-full overflow-hidden border border-primary/20 bg-secondary flex items-center justify-center">
+          <img src={user.avatarUrl!} alt={user.displayName} className="w-full h-full object-cover" />
+        </div>
+      ) : UserCircle
+    },
   ];
 
   return (
@@ -97,7 +105,13 @@ export const MainLayout = () => {
               {isDark ? <Sun className="w-4.5 h-4.5" /> : <Moon className="w-4.5 h-4.5" />}
             </Button>
             <Button variant="ghost" size="sm" className={`h-9 w-9 p-0 ${location.pathname.startsWith('/profile') ? 'bg-accent text-accent-foreground' : ''}`} onClick={() => navigate("/profile")}>
-              <UserCircle className="w-4.5 h-4.5" />
+              {user?.avatarUrl ? (
+                <div className="w-6 h-6 rounded-full overflow-hidden border-2 border-primary/20 bg-secondary flex items-center justify-center">
+                  <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                </div>
+              ) : (
+                <UserCircle className="w-4.5 h-4.5" />
+              )}
             </Button>
             <Button
               variant="ghost"
