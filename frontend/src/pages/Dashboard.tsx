@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, ChevronRight, Users } from "lucide-react";
+import { Bell, BellOff, ChevronRight, Users, Filter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { Group } from "@/components/GroupCard";
 import { TrackCard } from "@/components/TrackCard";
 import { TrackDetailsModal } from "@/components/TrackDetailsModal";
@@ -24,6 +25,8 @@ const Dashboard = () => {
   const { user } = useAuth();
   const { activeGroup, setActiveGroup, setShowCreateGroup } = useAppContext();
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterText, setFilterText] = useState("");
+  const [showFilter, setShowFilter] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [showManageMembers, setShowManageMembers] = useState(false);
@@ -160,6 +163,19 @@ const Dashboard = () => {
     })
   );
 
+  const filteredTracks = useMemo(() => {
+    if (!filterText.trim()) return tracks;
+    const lower = filterText.toLowerCase();
+    return tracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(lower) ||
+        t.artist.toLowerCase().includes(lower) ||
+        t.sharedBy.toLowerCase().includes(lower) ||
+        t.genre.toLowerCase().includes(lower) ||
+        t.source.toLowerCase().includes(lower)
+    );
+  }, [tracks, filterText]);
+
   // Fire browser notifications for new tracks posted by other members.
   useGroupNotifications(tracks, activeGroupSummary?.name ?? null, activeGroup);
 
@@ -237,17 +253,50 @@ const Dashboard = () => {
               <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                 Recent Activity
               </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                {weeklyTotal} tracks this week
-              </span>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-6 w-6 p-0 hover:bg-transparent ${showFilter ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => {
+                    setShowFilter(!showFilter);
+                    if (showFilter) setFilterText("");
+                  }}
+                  title="Filter tracks"
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                </Button>
+                <span className="text-xs font-mono text-muted-foreground">
+                  {weeklyTotal} tracks this week
+                </span>
+              </div>
             </div>
 
-            {tracks.length === 0 ? (
+            <AnimatePresence>
+              {showFilter && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="px-3 pb-3 overflow-hidden"
+                >
+                  <Input
+                    placeholder="Filter by song, artist, @username, genre, or platform..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                    className="h-8 text-sm bg-secondary/30 border-none shadow-none focus-visible:ring-1 focus-visible:ring-primary/50"
+                    autoFocus
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {filteredTracks.length === 0 ? (
               <div className="px-3 py-8 rounded-lg bg-card shadow-card text-base text-muted-foreground">
-                No tracks have been shared in this group yet.
+                {tracks.length === 0 ? "No tracks have been shared in this group yet." : "No tracks match your filter."}
               </div>
             ) : (
-              tracks.map((track, index) => (
+              filteredTracks.map((track, index) => (
                 <TrackCard
                   key={track.id}
                   track={track}
