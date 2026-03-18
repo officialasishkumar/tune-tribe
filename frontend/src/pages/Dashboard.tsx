@@ -187,36 +187,6 @@ const Dashboard = () => {
             </div>
             {activeGroup && (
               <div className="flex items-center gap-1">
-                {typeof Notification !== "undefined" && notifPermission === "default" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    title="Enable notifications for new tracks"
-                    className="text-sm gap-1 text-muted-foreground"
-                    onClick={handleRequestNotifPermission}
-                  >
-                    <Bell className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Notify me</span>
-                  </Button>
-                )}
-                {typeof Notification !== "undefined" && notifPermission === "denied" && (
-                  <span
-                    title="Notifications blocked – enable them in your browser settings"
-                    className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 cursor-default"
-                  >
-                    <BellOff className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Notifications off</span>
-                  </span>
-                )}
-                {typeof Notification !== "undefined" && notifPermission === "granted" && (
-                  <span
-                    title="Browser notifications enabled"
-                    className="flex items-center gap-1 text-xs text-muted-foreground px-2 py-1 cursor-default"
-                  >
-                    <Bell className="w-3.5 h-3.5 text-primary" />
-                    <span className="hidden sm:inline">Notifications on</span>
-                  </span>
-                )}
                 <Button
                   variant="ghost"
                   size="sm"

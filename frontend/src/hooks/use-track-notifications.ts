@@ -18,7 +18,8 @@ export const useTrackNotifications = () => {
         if (maxTrackIdRef.current !== null && maxId > maxTrackIdRef.current) {
           const newTracks = tracks.filter((t) => Number(t.id) > maxTrackIdRef.current!);
           
-          if ("Notification" in window && Notification.permission === "granted") {
+          const isEnabled = typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? localStorage.getItem("tuneTribe_notificationsEnabled") !== "false" : true;
+          if ("Notification" in window && Notification.permission === "granted" && isEnabled) {
             newTracks.forEach((track) => {
               if (track.sharedBy !== user?.username) {
                 new Notification("New track shared!", {

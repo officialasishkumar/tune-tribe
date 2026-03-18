@@ -26,16 +26,32 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
     "Notification" in window ? Notification.permission : "denied"
   );
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(
+    typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? localStorage.getItem("tuneTribe_notificationsEnabled") !== "false" : true
+  );
 
   const requestNotificationPermission = async () => {
     if ("Notification" in window) {
       if (Notification.permission === "granted") {
-        toast.info("Notifications are already enabled.");
+        const newState = !notificationsEnabled;
+        setNotificationsEnabled(newState);
+        if (typeof localStorage !== "undefined" && typeof localStorage.setItem === "function") {
+          localStorage.setItem("tuneTribe_notificationsEnabled", String(newState));
+        }
+        if (newState) {
+          toast.success("Notifications enabled!");
+        } else {
+          toast.success("Notifications disabled.");
+        }
         return;
       }
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
       if (permission === "granted") {
+        setNotificationsEnabled(true);
+        if (typeof localStorage !== "undefined" && typeof localStorage.setItem === "function") {
+          localStorage.setItem("tuneTribe_notificationsEnabled", "true");
+        }
         toast.success("Notifications enabled!");
       } else if (permission === "denied") {
         toast.error("Notifications were denied.");
@@ -221,14 +237,14 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-3">
                 {"Notification" in window && (
                   <button
                     onClick={requestNotificationPermission}
                     className="text-muted-foreground hover:text-foreground transition-colors"
-                    title={notificationPermission === "granted" ? "Notifications Enabled" : "Enable Notifications"}
+                    title={notificationPermission === "granted" && notificationsEnabled ? "Notifications Enabled" : "Enable Notifications"}
                   >
-                    {notificationPermission === "granted" ? (
+                    {notificationPermission === "granted" && notificationsEnabled ? (
                       <BellRing className="w-5 h-5 text-primary" />
                     ) : (
                       <BellOff className="w-5 h-5" />

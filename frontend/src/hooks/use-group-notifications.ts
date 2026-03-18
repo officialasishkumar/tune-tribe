@@ -42,7 +42,8 @@ export function useGroupNotifications(
     // Always record them, even if we can't show a notification.
     newTracks.forEach((t) => seenIds.current.add(t.id));
 
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const isEnabled = typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? localStorage.getItem("tuneTribe_notificationsEnabled") !== "false" : true;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted" || !isEnabled) return;
 
     newTracks.forEach((track) => {
       const notification = new Notification(`🎵 New track in ${groupName}`, {
