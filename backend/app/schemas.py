@@ -167,6 +167,15 @@ class GroupCreateRequest(APIModel):
         return deduplicated
 
 
+class GroupUpdateRequest(APIModel):
+    name: str = Field(min_length=2, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        return value.strip()
+
+
 class GroupAddMembersRequest(APIModel):
     member_ids: list[int] = Field(min_length=1)
 

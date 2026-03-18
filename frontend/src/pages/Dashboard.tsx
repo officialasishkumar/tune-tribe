@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BellOff, ChevronRight, Users, Filter } from "lucide-react";
+import { Bell, BellOff, ChevronRight, Users, Filter, Pencil, Check, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,8 @@ const Dashboard = () => {
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null);
   const [showManageMembers, setShowManageMembers] = useState(false);
+  const [isEditingGroupName, setIsEditingGroupName] = useState(false);
+  const [editGroupNameValue, setEditGroupNameValue] = useState("");
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied",
   );
@@ -109,6 +111,19 @@ const Dashboard = () => {
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Failed to remove track");
+    },
+  });
+
+  const updateGroupMutation = useMutation({
+    mutationFn: ({ groupId, name }: { groupId: number; name: string }) => api.updateGroup(groupId, name),
+    onSuccess: () => {
+      toast.success("Group name updated");
+      void queryClient.invalidateQueries({ queryKey: ["groups"] });
+      void queryClient.invalidateQueries({ queryKey: ["group", activeGroup] });
+      setIsEditingGroupName(false);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to update group name");
     },
   });
 
@@ -209,9 +224,62 @@ const Dashboard = () => {
         <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">
-                {activeGroupSummary?.name ?? "Create your first tribe"}
-              </h1>
+              <div className="flex items-center gap-2">
+                {isEditingGroupName && activeGroupSummary ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      autoFocus
+                      value={editGroupNameValue}
+                      onChange={(e) => setEditGroupNameValue(e.target.value)}
+                      className="h-8 text-xl font-semibold px-2 w-48"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && editGroupNameValue.trim().length >= 2) {
+                          updateGroupMutation.mutate({ groupId: activeGroupSummary.id, name: editGroupNameValue.trim() });
+                        } else if (e.key === 'Escape') {
+                          setIsEditingGroupName(false);
+                        }
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-green-500 hover:text-green-600 hover:bg-green-500/10"
+                      onClick={() => updateGroupMutation.mutate({ groupId: activeGroupSummary.id, name: editGroupNameValue.trim() })}
+                      disabled={editGroupNameValue.trim().length < 2 || updateGroupMutation.isPending}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setIsEditingGroupName(false)}
+                      disabled={updateGroupMutation.isPending}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <h1 className="text-xl font-semibold tracking-tight">
+                      {activeGroupSummary?.name ?? "Create your first tribe"}
+                    </h1>
+                    {activeGroupSummary?.isOwner && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground opacity-50 hover:opacity-100"
+                        onClick={() => {
+                          setEditGroupNameValue(activeGroupSummary.name);
+                          setIsEditingGroupName(true);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground mt-1">
                 {activeGroupSummary
                   ? `${activeGroupSummary.memberCount} members · ${activeGroupSummary.trackCount} tracks`

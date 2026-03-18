@@ -177,6 +177,11 @@ export const api = {
     apiRequest<void>(`/api/groups/${groupId}/tracks/${trackId}`, {
       method: "DELETE",
     }),
+  updateGroup: (groupId: number, name: string) =>
+    apiRequest<GroupSummary>(`/api/groups/${groupId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
   deleteGroup: (groupId: number) =>
     apiRequest<void>(`/api/groups/${groupId}`, {
       method: "DELETE",

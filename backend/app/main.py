@@ -26,6 +26,7 @@ from app.schemas import (
     GlobalStatsResponse,
     GroupAddMembersRequest,
     GroupCreateRequest,
+    GroupUpdateRequest,
     GroupSummary,
     LoginRequest,
     ProfileUpdateRequest,
@@ -433,6 +434,28 @@ def create_app() -> FastAPI:
 
         db.commit()
         db.refresh(group)
+        group = db.scalar(
+            select(Group)
+            .where(Group.id == group.id)
+            .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
+        )
+        return _serialize_group(group, current_user.id)
+
+    @app.patch("/api/groups/{group_id}", response_model=GroupSummary)
+    def update_group(
+        group_id: int,
+        payload: GroupUpdateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> GroupSummary:
+        group = db.scalar(select(Group).where(Group.id == group_id, Group.owner_id == current_user.id))
+        if group is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found or you don't have permission.")
+            
+        group.name = payload.name
+        db.commit()
+        db.refresh(group)
+        
         group = db.scalar(
             select(Group)
             .where(Group.id == group.id)
