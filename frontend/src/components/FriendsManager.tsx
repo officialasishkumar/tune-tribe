@@ -45,6 +45,14 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
         }
         return;
       }
+
+      if (Notification.permission === "denied") {
+        toast.error("Notifications are blocked. Please click the site info (lock icon) in your browser address bar to allow them.", {
+          duration: 5000,
+        });
+        return;
+      }
+
       const permission = await Notification.requestPermission();
       setNotificationPermission(permission);
       if (permission === "granted") {
@@ -54,7 +62,7 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
         }
         toast.success("Notifications enabled!");
       } else if (permission === "denied") {
-        toast.error("Notifications were denied.");
+        toast.error("Notifications were denied. You can enable them later in your browser settings.");
       }
     }
   };
