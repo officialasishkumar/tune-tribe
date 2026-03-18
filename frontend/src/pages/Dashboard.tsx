@@ -321,23 +321,18 @@ const Dashboard = () => {
               <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
                 Recent Activity
               </span>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className={`h-6 w-6 p-0 hover:bg-transparent ${showFilter ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => {
-                    setShowFilter(!showFilter);
-                    if (showFilter) setFilterText("");
-                  }}
-                  title="Filter tracks"
-                >
-                  <Filter className="w-3.5 h-3.5" />
-                </Button>
-                <span className="text-xs font-mono text-muted-foreground">
-                  {weeklyTotal} tracks this week
-                </span>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`h-6 w-6 p-0 hover:bg-transparent ${showFilter ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => {
+                  setShowFilter(!showFilter);
+                  if (showFilter) setFilterText("");
+                }}
+                title="Filter tracks"
+              >
+                <Filter className="w-3.5 h-3.5" />
+              </Button>
             </div>
 
             <AnimatePresence>
