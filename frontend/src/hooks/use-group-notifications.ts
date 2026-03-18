@@ -24,7 +24,7 @@ export function useGroupNotifications(
       prevGroupId.current = activeGroupId;
     }
 
-    if (!tracks.length || !groupName) return;
+    if (!groupName) return;
 
     // On the first data-load for this group, silently mark all tracks as
     // seen so we only notify about tracks added *after* the page opened.
@@ -33,6 +33,8 @@ export function useGroupNotifications(
       initialized.current = true;
       return;
     }
+
+    if (!tracks.length) return;
 
     const newTracks = tracks.filter((t) => !seenIds.current.has(t.id));
     if (newTracks.length === 0) return;
