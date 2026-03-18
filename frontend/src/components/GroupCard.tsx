@@ -36,28 +36,29 @@ export const GroupCard = ({ group, onClick, onDelete, isActive = false, index = 
         <span className={`text-base font-medium truncate pr-6 ${isActive ? "text-primary" : "text-foreground"}`}>
           {group.name}
         </span>
-        <span className="text-xs font-mono tabular-nums text-muted-foreground shrink-0">
-          {group.trackCount}
-        </span>
+        <div className="relative flex items-center shrink-0 min-h-[28px]">
+          <span className={`text-xs font-mono tabular-nums text-muted-foreground transition-opacity ${group.isOwner && onDelete ? 'group-hover:opacity-0' : ''}`}>
+            {group.trackCount}
+          </span>
+          {group.isOwner && onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="absolute right-0 p-1.5 -mr-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
-      <div className="flex items-center gap-1.5 mt-1">
+      <div className="flex items-center gap-1.5 mt-0.5">
         <Users className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">{group.memberCount} members</span>
         <span className="text-sm text-muted-foreground">·</span>
         <span className="text-sm text-muted-foreground truncate">{group.lastActive}</span>
       </div>
-      
-      {group.isOwner && onDelete && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="absolute right-2 top-2 p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      )}
     </motion.button>
   );
 };
