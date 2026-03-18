@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -27,10 +27,23 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    login_count: Mapped[int] = mapped_column(Integer, default=0)
+    profile_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owned_groups: Mapped[list[Group]] = relationship("Group", back_populates="owner")
     memberships: Mapped[list[GroupMembership]] = relationship("GroupMembership", back_populates="user")
     shared_tracks: Mapped[list[TrackShare]] = relationship("TrackShare", back_populates="shared_by")
+    activity_events: Mapped[list[ActivityEvent]] = relationship(
+        "ActivityEvent",
+        foreign_keys="ActivityEvent.actor_user_id",
+        back_populates="actor",
+    )
+    subject_events: Mapped[list[ActivityEvent]] = relationship(
+        "ActivityEvent",
+        foreign_keys="ActivityEvent.subject_user_id",
+        back_populates="subject_user",
+    )
     friends: Mapped[list[Friendship]] = relationship(
         "Friendship",
         foreign_keys="Friendship.user_id",
@@ -60,12 +73,14 @@ class Group(Base):
     name: Mapped[str] = mapped_column(String(120), index=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     owner: Mapped[User] = relationship("User", back_populates="owned_groups")
     memberships: Mapped[list[GroupMembership]] = relationship(
         "GroupMembership", back_populates="group", cascade="all, delete-orphan"
     )
     tracks: Mapped[list[TrackShare]] = relationship("TrackShare", back_populates="group", cascade="all, delete-orphan")
+    activity_events: Mapped[list[ActivityEvent]] = relationship("ActivityEvent", back_populates="group")
 
 
 class GroupMembership(Base):
@@ -107,6 +122,52 @@ class TrackShare(Base):
 
     group: Mapped[Group] = relationship("Group", back_populates="tracks")
     shared_by: Mapped[User] = relationship("User", back_populates="shared_tracks")
+    activity_events: Mapped[list[ActivityEvent]] = relationship("ActivityEvent", back_populates="track_share")
+
+
+class ActivityEvent(Base):
+    __tablename__ = "activity_events"
+    __table_args__ = (
+        Index("ix_activity_events_occurred_at", "occurred_at"),
+        Index("ix_activity_events_type_occurred_at", "event_type", "occurred_at"),
+        Index("ix_activity_events_group_occurred_at", "group_id", "occurred_at"),
+        Index("ix_activity_events_actor_occurred_at", "actor_user_id", "occurred_at"),
+        Index("ix_activity_events_subject_occurred_at", "subject_user_id", "occurred_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    subject_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    group_id: Mapped[int | None] = mapped_column(
+        ForeignKey("groups.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    track_share_id: Mapped[int | None] = mapped_column(
+        ForeignKey("track_shares.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+    details: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    actor: Mapped[User | None] = relationship("User", foreign_keys=[actor_user_id], back_populates="activity_events")
+    subject_user: Mapped[User | None] = relationship(
+        "User",
+        foreign_keys=[subject_user_id],
+        back_populates="subject_events",
+    )
+    group: Mapped[Group | None] = relationship("Group", back_populates="activity_events")
+    track_share: Mapped[TrackShare | None] = relationship("TrackShare", back_populates="activity_events")
 
 
 class TrackMetadataCacheEntry(Base):

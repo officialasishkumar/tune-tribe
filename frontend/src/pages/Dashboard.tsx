@@ -11,6 +11,7 @@ import { TrackCard } from "@/components/TrackCard";
 import { TrackDetailsModal } from "@/components/TrackDetailsModal";
 import { AddTrackInput } from "@/components/AddTrackInput";
 import { ManageGroupMembersModal } from "@/components/ManageGroupMembersModal";
+import { RecentActivityFeed } from "@/components/RecentActivityFeed";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
@@ -88,6 +89,13 @@ const Dashboard = () => {
     queryKey: ["group", activeGroup, "analytics", "30d"],
     queryFn: () => api.getGroupAnalytics(activeGroup as number, "30d"),
     enabled: Boolean(activeGroup),
+  });
+
+  const activityQuery = useQuery({
+    queryKey: ["group", activeGroup, "activity"],
+    queryFn: () => api.getGroupActivity(activeGroup as number),
+    enabled: Boolean(activeGroup),
+    refetchInterval: 30_000,
   });
 
   const addTrackMutation = useMutation({
@@ -308,6 +316,18 @@ const Dashboard = () => {
             )}
           </div>
 
+          {activeGroup && (
+            <section className="lg:hidden space-y-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Activity Log</h2>
+                <div className="h-px flex-1 bg-border/40" />
+              </div>
+              <div className="p-4 rounded-lg bg-card border shadow-card">
+                <RecentActivityFeed events={activityQuery.data ?? []} emptyMessage="No group activity yet." />
+              </div>
+            </section>
+          )}
+
           {activeGroup ? (
             <AddTrackInput onSubmit={(url) => addTrackMutation.mutateAsync(url).then(() => undefined)} />
           ) : (
@@ -383,6 +403,7 @@ const Dashboard = () => {
         topGenre={topGenre}
         topSource={topSource}
         chartData={chartData}
+        recentActivity={activityQuery.data}
       />
 
       <AnimatePresence>

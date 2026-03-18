@@ -1,4 +1,5 @@
 import type {
+  ActivityEvent,
   Analytics,
   AuthResponse,
   Friend,
@@ -187,6 +188,9 @@ export const api = {
       method: "DELETE",
     }),
   listGroupTracks: (groupId: number) => apiRequest<Track[]>(`/api/groups/${groupId}/tracks`),
+  getGroupActivity: (groupId: number) =>
+    apiRequest<ActivityEvent[]>(`/api/groups/${groupId}/activity`),
+  getPersonalActivity: () => apiRequest<ActivityEvent[]>("/api/activity/me"),
   getTracksFeed: () => apiRequest<Track[]>("/api/tracks/feed"),
   addTrack: (groupId: number, url: string) =>
     apiRequest<Track>(`/api/groups/${groupId}/tracks`, {

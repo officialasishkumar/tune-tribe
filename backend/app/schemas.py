@@ -32,6 +32,10 @@ class UserSummary(APIModel):
     favorite_genre: str | None = None
     favorite_artist: str | None = None
     avatar_url: str | None = None
+    created_at: datetime
+    last_login_at: datetime | None = None
+    login_count: int = 0
+    profile_updated_at: datetime | None = None
 
 
 class TokenResponse(APIModel):
@@ -230,6 +234,14 @@ class TrackSummary(APIModel):
     album_art_url: str | None = None
     duration_ms: int | None = None
     shared_at: datetime
+
+
+class ActivityEventSummary(APIModel):
+    id: int
+    event_type: str
+    title: str
+    detail: str | None = None
+    occurred_at: datetime
 
 
 class StatPoint(APIModel):
