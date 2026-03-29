@@ -58,6 +58,9 @@ class FixedWindowRateLimiter:
                 self._entries[key] = entry
             entry.count += 1
 
+    def record_attempt(self, key: str) -> None:
+        self.record_failure(key)
+
     def clear(self, key: str) -> None:
         with self._lock:
             self._entries.pop(key, None)
@@ -78,4 +81,13 @@ def get_auth_rate_limiter() -> FixedWindowRateLimiter:
     return FixedWindowRateLimiter(
         max_attempts=settings.auth_rate_limit_max_attempts,
         window_seconds=settings.auth_rate_limit_window_seconds,
+    )
+
+
+@lru_cache
+def get_friend_lookup_rate_limiter() -> FixedWindowRateLimiter:
+    settings = get_settings()
+    return FixedWindowRateLimiter(
+        max_attempts=settings.friend_lookup_rate_limit_max_attempts,
+        window_seconds=settings.friend_lookup_rate_limit_window_seconds,
     )

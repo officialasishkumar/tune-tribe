@@ -7,6 +7,10 @@ export type User = {
   favoriteGenre?: string | null;
   favoriteArtist?: string | null;
   avatarUrl?: string | null;
+  createdAt: string;
+  lastLoginAt?: string | null;
+  loginCount: number;
+  profileUpdatedAt?: string | null;
 };
 
 export type AuthResponse = {
@@ -24,6 +28,10 @@ export type Friend = {
   friendshipStatus: "none" | "pending_outgoing" | "pending_incoming" | "accepted";
 };
 
+export type FriendLookupResponse = {
+  user: Friend | null;
+};
+
 export type FriendRequest = {
   id: number;
   fromUser: Friend;
@@ -37,6 +45,7 @@ export type GroupSummary = {
   trackCount: number;
   lastActiveAt?: string | null;
   members: string[];
+  memberDetails?: { id: number; username: string }[];
   isOwner?: boolean;
 };
 
@@ -52,6 +61,14 @@ export type Track = {
   albumArtUrl?: string | null;
   durationMs?: number | null;
   sharedAt: string;
+};
+
+export type ActivityEvent = {
+  id: number;
+  eventType: string;
+  title: string;
+  detail?: string | null;
+  occurredAt: string;
 };
 
 export type StatPoint = {

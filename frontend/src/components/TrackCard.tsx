@@ -1,6 +1,6 @@
 import { SourceBadge } from "./SourceBadge";
 import { motion } from "framer-motion";
-import { ExternalLink } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { formatRelativeTime } from "@/lib/format";
 import type { Track } from "@/lib/types";
@@ -9,9 +9,10 @@ type TrackCardProps = {
   track: Track;
   index?: number;
   onClick?: () => void;
+  onDelete?: (e: React.MouseEvent) => void;
 };
 
-export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
+export const TrackCard = ({ track, index = 0, onClick, onDelete }: TrackCardProps) => {
   return (
     <motion.button
       type="button"
@@ -43,17 +44,32 @@ export const TrackCard = ({ track, index = 0, onClick }: TrackCardProps) => {
         </div>
       </div>
 
-      <SourceBadge url={track.url} showLabel={false} />
+      <div className="relative flex items-center justify-end">
+        <div className={`flex items-center gap-3 transition-opacity duration-200 ${onDelete ? 'group-hover:opacity-0 group-focus-visible:opacity-0' : ''}`}>
+          <SourceBadge url={track.url} showLabel={false} />
 
-      <span className="hidden sm:inline-flex text-xs font-mono px-2 py-0.5 rounded-md bg-secondary text-muted-foreground">
-        {track.genre}
-      </span>
+          <span className="hidden sm:inline-flex text-xs font-mono px-2 py-0.5 rounded-md bg-secondary text-muted-foreground">
+            {track.genre}
+          </span>
 
-      <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60 whitespace-nowrap">
-        {formatRelativeTime(track.sharedAt)}
-      </span>
+          <span className="text-[10px] font-mono tabular-nums text-muted-foreground/60 whitespace-nowrap">
+            {formatRelativeTime(track.sharedAt)}
+          </span>
+        </div>
 
-      <ExternalLink className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+        {onDelete && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(e);
+            }}
+            className="absolute right-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-opacity opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 cursor-pointer flex items-center justify-center"
+            title="Remove track"
+          >
+            <Trash2 className="h-4 w-4" />
+          </div>
+        )}
+      </div>
     </motion.button>
   );
 };

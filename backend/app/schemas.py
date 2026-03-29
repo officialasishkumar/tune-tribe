@@ -8,6 +8,7 @@ from app.validation import (
     normalize_bio_text,
     normalize_optional_text,
     normalize_required_text,
+    normalize_username,
     validate_music_url,
     validate_profile_image_url,
 )
@@ -31,6 +32,10 @@ class UserSummary(APIModel):
     favorite_genre: str | None = None
     favorite_artist: str | None = None
     avatar_url: str | None = None
+    created_at: datetime
+    last_login_at: datetime | None = None
+    login_count: int = 0
+    profile_updated_at: datetime | None = None
 
 
 class TokenResponse(APIModel):
@@ -50,10 +55,7 @@ class RegisterRequest(APIModel):
     @field_validator("username")
     @classmethod
     def normalize_username(cls, value: str) -> str:
-        cleaned = value.strip().lower()
-        if not cleaned.replace("_", "").isalnum():
-            raise ValueError("Username may contain only letters, numbers, and underscores.")
-        return cleaned
+        return normalize_username(value)
 
     @field_validator("display_name")
     @classmethod
@@ -127,6 +129,19 @@ class FriendUser(APIModel):
     friendship_status: str = "none"
 
 
+class FriendLookupQuery(APIModel):
+    username: str = Field(min_length=3, max_length=25)
+
+    @field_validator("username")
+    @classmethod
+    def normalize_lookup_username(cls, value: str) -> str:
+        return normalize_username(value, field_name="Username", allow_at_prefix=True)
+
+
+class FriendLookupResponse(APIModel):
+    user: FriendUser | None = None
+
+
 class FriendRequest(APIModel):
     id: int
     from_user: FriendUser
@@ -156,6 +171,37 @@ class GroupCreateRequest(APIModel):
         return deduplicated
 
 
+class GroupUpdateRequest(APIModel):
+    name: str = Field(min_length=2, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class GroupAddMembersRequest(APIModel):
+    member_ids: list[int] = Field(min_length=1)
+
+    @field_validator("member_ids")
+    @classmethod
+    def normalize_member_ids(cls, value: list[int]) -> list[int]:
+        deduplicated: list[int] = []
+        seen: set[int] = set()
+        for member_id in value:
+            if member_id <= 0:
+                raise ValueError("Member IDs must be positive integers.")
+            if member_id not in seen:
+                seen.add(member_id)
+                deduplicated.append(member_id)
+        return deduplicated
+
+
+class GroupMember(APIModel):
+    id: int
+    username: str
+
+
 class GroupSummary(APIModel):
     id: int
     name: str
@@ -163,6 +209,7 @@ class GroupSummary(APIModel):
     track_count: int
     last_active_at: datetime | None
     members: list[str]
+    member_details: list[GroupMember] = Field(default_factory=list)
     is_owner: bool = False
 
 
@@ -187,6 +234,14 @@ class TrackSummary(APIModel):
     album_art_url: str | None = None
     duration_ms: int | None = None
     shared_at: datetime
+
+
+class ActivityEventSummary(APIModel):
+    id: int
+    event_type: str
+    title: str
+    detail: str | None = None
+    occurred_at: datetime
 
 
 class StatPoint(APIModel):

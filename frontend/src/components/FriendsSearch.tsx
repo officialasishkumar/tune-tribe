@@ -1,10 +1,10 @@
-import { useDeferredValue, useState, useEffect } from "react";
+import { FormEvent, useDeferredValue, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, UserPlus, UserCheck, X, Users, Clock, Check } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import { toast } from "sonner";
 import type { Friend } from "@/lib/types";
 
@@ -16,6 +16,8 @@ type FriendsSearchProps = {
 
 export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSearchProps) => {
   const [query, setQuery] = useState("");
+  const [submittedUsername, setSubmittedUsername] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const queryClient = useQueryClient();
 
@@ -30,9 +32,21 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  const { data: users = [] } = useQuery({
-    queryKey: ["friends", deferredQuery],
-    queryFn: () => api.searchUsers(deferredQuery),
+  const { data: friends = [], isFetching: isLoadingFriends } = useQuery({
+    queryKey: ["friendsList"],
+    queryFn: api.listFriends,
+    enabled: mode === "add-to-group",
+  });
+
+  const {
+    data: lookedUpUser = null,
+    isFetching: isLookingUpUser,
+    error: lookupError,
+  } = useQuery({
+    queryKey: ["friendLookup", submittedUsername],
+    queryFn: () => api.lookupUserByUsername(submittedUsername),
+    enabled: mode === "search" && submittedUsername.length > 0,
+    retry: false,
   });
 
   const addFriendMutation = useMutation({
@@ -43,18 +57,20 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
       } else {
         toast.success(`Friend request sent to @${friend.username}`);
       }
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
     },
   });
 
   const removeFriendMutation = useMutation({
     mutationFn: (friendId: number) => api.removeFriend(friendId),
     onSuccess: (_, friendId) => {
-      const friend = users.find((entry) => entry.id === friendId);
+      const friend = lookedUpUser?.id === friendId ? lookedUpUser : friends.find((entry) => entry.id === friendId);
       toast.success(friend ? `Removed @${friend.username}` : "Friend removed");
-      void queryClient.invalidateQueries({ queryKey: ["friends"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendLookup"] });
       void queryClient.invalidateQueries({ queryKey: ["friendRequests"] });
+      void queryClient.invalidateQueries({ queryKey: ["friendsList"] });
     },
   });
 
@@ -68,6 +84,48 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
       addFriendMutation.mutate(friend.id);
     }
   };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const normalizedUsername = query.trim().replace(/^@/, "");
+    if (mode !== "search" || normalizedUsername.length < 3 || isLookingUpUser) {
+      return;
+    }
+
+    setHasSearched(true);
+    setSubmittedUsername(query.trim());
+  };
+
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    if (mode === "search") {
+      setSubmittedUsername("");
+      setHasSearched(false);
+    }
+  };
+
+  const filteredFriends =
+    mode !== "add-to-group"
+      ? []
+      : friends.filter((friend) => {
+          const normalizedQuery = deferredQuery.trim().toLowerCase();
+          if (!normalizedQuery) {
+            return true;
+          }
+          return (
+            friend.username.toLowerCase().includes(normalizedQuery.replace(/^@/, "")) ||
+            friend.displayName.toLowerCase().includes(normalizedQuery)
+          );
+        });
+
+  const users = mode === "add-to-group" ? filteredFriends : lookedUpUser ? [lookedUpUser] : [];
+  const normalizedSearchQuery = query.trim().replace(/^@/, "");
+  const searchError =
+    lookupError instanceof ApiError
+      ? lookupError.message
+      : lookupError instanceof Error
+        ? lookupError.message
+        : null;
 
   const renderActionButton = (user: Friend) => {
     if (mode === "add-to-group") {
@@ -136,6 +194,32 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
     );
   };
 
+  const renderEmptyState = () => {
+    if (mode === "add-to-group") {
+      if (isLoadingFriends) {
+        return "Loading your friends...";
+      }
+      if (friends.length === 0) {
+        return "You don't have any friends to add yet.";
+      }
+      if (query) {
+        return `No friends found matching "${query}"`;
+      }
+      return "Start typing to filter your friends.";
+    }
+
+    if (isLookingUpUser) {
+      return "Looking up username...";
+    }
+    if (searchError) {
+      return searchError;
+    }
+    if (hasSearched) {
+      return `No account found for @${normalizedSearchQuery}`;
+    }
+    return "Enter the full @username, then press Search.";
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -152,26 +236,46 @@ export const FriendsSearch = ({ onClose, mode = "search", onSelect }: FriendsSea
         className="w-full max-w-md bg-background rounded-2xl shadow-elevated overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search header */}
-        <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary/5 to-transparent">
-          <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-          <Input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={mode === "add-to-group" ? "Search friends to add to group..." : "Search by @username..."}
-            className="border-0 shadow-none focus-visible:ring-0 text-base bg-transparent px-0 h-9"
-          />
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {mode === "search" ? (
+          <form
+            className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary/5 to-transparent"
+            onSubmit={handleSubmit}
+          >
+            <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="Enter full @username"
+              className="border-0 shadow-none focus-visible:ring-0 text-base bg-transparent px-0 h-9"
+            />
+            <Button type="submit" size="sm" disabled={normalizedSearchQuery.length < 3 || isLookingUpUser}>
+              {isLookingUpUser ? "Searching..." : "Search"}
+            </Button>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" type="button">
+              <X className="w-5 h-5" />
+            </button>
+          </form>
+        ) : (
+          <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-primary/5 to-transparent">
+            <Search className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+            <Input
+              autoFocus
+              value={query}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              placeholder="Filter your friends..."
+              className="border-0 shadow-none focus-visible:ring-0 text-base bg-transparent px-0 h-9"
+            />
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors" type="button">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
-        {/* Results */}
         <div className="max-h-80 overflow-y-auto">
           {users.length === 0 ? (
             <div className="px-4 py-8 text-center text-base text-muted-foreground">
-              {query ? `No users found matching "${query}"` : "Type to search for users..."}
+              {renderEmptyState()}
             </div>
           ) : (
             <div className="py-1">

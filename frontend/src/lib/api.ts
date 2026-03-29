@@ -1,7 +1,9 @@
 import type {
+  ActivityEvent,
   Analytics,
   AuthResponse,
   Friend,
+  FriendLookupResponse,
   FriendRequest,
   GlobalStatsResponse,
   GroupSummary,
@@ -161,13 +163,35 @@ export const api = {
   createGroup: (input: { name: string; memberIds: number[] }) =>
     apiRequest<GroupSummary>("/api/groups", {
       method: "POST",
-      body: JSON.stringify(input),
+      body: JSON.stringify({ name: input.name, member_ids: input.memberIds }),
+    }),
+  addGroupMembers: (groupId: number, memberIds: number[]) =>
+    apiRequest<GroupSummary>(`/api/groups/${groupId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ member_ids: memberIds }),
+    }),
+  removeGroupMember: (groupId: number, userId: number) =>
+    apiRequest<void>(`/api/groups/${groupId}/members/${userId}`, {
+      method: "DELETE",
+    }),
+  removeGroupTrack: (groupId: number, trackId: number) =>
+    apiRequest<void>(`/api/groups/${groupId}/tracks/${trackId}`, {
+      method: "DELETE",
+    }),
+  updateGroup: (groupId: number, name: string) =>
+    apiRequest<GroupSummary>(`/api/groups/${groupId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
     }),
   deleteGroup: (groupId: number) =>
     apiRequest<void>(`/api/groups/${groupId}`, {
       method: "DELETE",
     }),
   listGroupTracks: (groupId: number) => apiRequest<Track[]>(`/api/groups/${groupId}/tracks`),
+  getGroupActivity: (groupId: number) =>
+    apiRequest<ActivityEvent[]>(`/api/groups/${groupId}/activity`),
+  getPersonalActivity: () => apiRequest<ActivityEvent[]>("/api/activity/me"),
+  getTracksFeed: () => apiRequest<Track[]>("/api/tracks/feed"),
   addTrack: (groupId: number, url: string) =>
     apiRequest<Track>(`/api/groups/${groupId}/tracks`, {
       method: "POST",
@@ -177,8 +201,12 @@ export const api = {
     apiRequest<Analytics>(`/api/groups/${groupId}/analytics?window=${encodeURIComponent(window)}`),
   getPersonalAnalytics: (window: string) =>
     apiRequest<Analytics>(`/api/analytics/me?window=${encodeURIComponent(window)}`),
-  searchUsers: (query: string) =>
-    apiRequest<Friend[]>(`/api/friends?q=${encodeURIComponent(query)}`),
+  lookupUserByUsername: async (username: string) => {
+    const response = await apiRequest<FriendLookupResponse>(
+      `/api/friends/lookup?username=${encodeURIComponent(username)}`
+    );
+    return response.user;
+  },
   listFriends: () =>
     apiRequest<Friend[]>("/api/friends/list"),
   addFriend: (friendId: number) =>

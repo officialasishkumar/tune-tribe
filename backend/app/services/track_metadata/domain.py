@@ -82,3 +82,10 @@ class ResolvedTrack:
             album_art_url=self.album_art_url,
             duration_ms=self.duration_ms,
         )
+
+
+@dataclass(frozen=True)
+class MetadataResolutionResult:
+    track: ResolvedTrack
+    resolution_source: str
+    provider_name: str

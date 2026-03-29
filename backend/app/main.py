@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy import func, or_, select, delete
 from sqlalchemy.orm import Session, joinedload
 
 from app.bootstrap import run_startup_tasks
@@ -16,13 +16,18 @@ from app.config import get_settings
 from app.db import engine, get_db
 from app.deps import get_current_user
 from app.http import install_security_middleware
-from app.models import Friendship, Group, GroupMembership, TrackShare, User
+from app.models import ActivityEvent, Friendship, Group, GroupMembership, TrackShare, User
 from app.schemas import (
     AnalyticsResponse,
+    ActivityEventSummary,
+    FriendLookupQuery,
+    FriendLookupResponse,
     FriendRequest,
     FriendUser,
     GlobalStatsResponse,
+    GroupAddMembersRequest,
     GroupCreateRequest,
+    GroupUpdateRequest,
     GroupSummary,
     LoginRequest,
     ProfileUpdateRequest,
@@ -33,10 +38,32 @@ from app.schemas import (
     UserSummary,
 )
 from app.security import create_access_token, hash_password, verify_password
+from app.services.activity import (
+    EVENT_AUTH_LOGIN_SUCCEEDED,
+    EVENT_AUTH_REGISTERED,
+    EVENT_FRIEND_REMOVED,
+    EVENT_FRIEND_REQUEST_ACCEPTED,
+    EVENT_FRIEND_REQUEST_REJECTED,
+    EVENT_FRIEND_REQUEST_SENT,
+    EVENT_GROUP_CREATED,
+    EVENT_GROUP_DELETED,
+    EVENT_GROUP_MEMBER_ADDED,
+    EVENT_GROUP_MEMBER_REMOVED,
+    EVENT_GROUP_OWNER_TRANSFERRED,
+    EVENT_GROUP_RENAMED,
+    EVENT_PROFILE_UPDATED,
+    EVENT_TRACK_METADATA_FAILED,
+    EVENT_TRACK_REMOVED,
+    EVENT_TRACK_SHARED,
+    GROUP_ACTIVITY_EVENT_TYPES,
+    log_activity_event,
+    serialize_activity_event,
+    utcnow,
+)
 from app.services.analytics import build_analytics, filter_tracks_by_window
 from app.services.auth import find_user_by_identifier
-from app.services.metadata import SOURCE_LABELS, resolve_track
-from app.services.rate_limit import get_auth_rate_limiter
+from app.services.metadata import SOURCE_LABELS, resolve_track_with_details
+from app.services.rate_limit import get_auth_rate_limiter, get_friend_lookup_rate_limiter
 
 
 AnalyticsWindow = Literal["7d", "30d", "90d", "all"]
@@ -74,9 +101,17 @@ def create_app() -> FastAPI:
 
     @app.get("/api/stats", response_model=GlobalStatsResponse)
     def get_global_stats(db: Session = Depends(get_db)) -> GlobalStatsResponse:
+        active_threshold = utcnow() - timedelta(days=30)
         groups_created = db.scalar(select(func.count(Group.id))) or 0
         tracks_shared = db.scalar(select(func.count(TrackShare.id))) or 0
-        active_members = db.scalar(select(func.count(User.id))) or 0
+        active_members = db.scalar(
+            select(func.count(User.id)).where(
+                or_(
+                    User.last_login_at >= active_threshold,
+                    User.created_at >= active_threshold,
+                )
+            )
+        ) or 0
         return GlobalStatsResponse(
             groups_created=groups_created,
             tracks_shared=tracks_shared,
@@ -102,6 +137,8 @@ def create_app() -> FastAPI:
             favorite_artist=payload.favorite_artist,
             avatar_url=f"https://api.dicebear.com/9.x/initials/svg?seed={payload.username}",
             password_hash=hash_password(payload.password),
+            last_login_at=utcnow(),
+            login_count=1,
         )
         db.add(user)
         db.flush()
@@ -110,6 +147,22 @@ def create_app() -> FastAPI:
         db.add(personal_group)
         db.flush()
         db.add(GroupMembership(group_id=personal_group.id, user_id=user.id, role="owner"))
+        log_activity_event(
+            db,
+            event_type=EVENT_AUTH_REGISTERED,
+            actor_user_id=user.id,
+            details={"actor_username": user.username},
+        )
+        log_activity_event(
+            db,
+            event_type=EVENT_GROUP_CREATED,
+            actor_user_id=user.id,
+            group_id=personal_group.id,
+            details={
+                "actor_username": user.username,
+                "group_name": personal_group.name,
+            },
+        )
         try:
             db.commit()
         except IntegrityError as exc:
@@ -144,6 +197,16 @@ def create_app() -> FastAPI:
             )
 
         limiter.clear(rate_limit_key)
+        user.last_login_at = utcnow()
+        user.login_count = (user.login_count or 0) + 1
+        db.add(user)
+        log_activity_event(
+            db,
+            event_type=EVENT_AUTH_LOGIN_SUCCEEDED,
+            actor_user_id=user.id,
+            details={"actor_username": user.username},
+        )
+        db.commit()
         return _token_response_for_user(user)
 
     @app.get("/api/auth/me", response_model=UserSummary)
@@ -160,59 +223,78 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> UserSummary:
+        changed_fields: list[str] = []
+        if current_user.display_name != payload.display_name:
+            changed_fields.append("display name")
+        if (current_user.bio or "") != payload.bio:
+            changed_fields.append("bio")
+        if current_user.favorite_genre != payload.favorite_genre:
+            changed_fields.append("favorite genre")
+        if current_user.favorite_artist != payload.favorite_artist:
+            changed_fields.append("favorite artist")
+        if current_user.avatar_url != payload.avatar_url:
+            changed_fields.append("avatar")
+
         current_user.display_name = payload.display_name
         current_user.bio = payload.bio
         current_user.favorite_genre = payload.favorite_genre
         current_user.favorite_artist = payload.favorite_artist
         current_user.avatar_url = payload.avatar_url
+        if changed_fields:
+            current_user.profile_updated_at = utcnow()
         db.add(current_user)
+        if changed_fields:
+            log_activity_event(
+                db,
+                event_type=EVENT_PROFILE_UPDATED,
+                actor_user_id=current_user.id,
+                details={
+                    "actor_username": current_user.username,
+                    "changed_fields": changed_fields,
+                },
+            )
         db.commit()
         db.refresh(current_user)
         return _serialize_user(current_user)
 
-    @app.get("/api/friends", response_model=list[FriendUser])
-    def search_users(
-        q: str = Query(default="", max_length=50),
+    @app.get("/api/friends/lookup", response_model=FriendLookupResponse)
+    def lookup_friend_by_username(
+        request: Request,
+        params: FriendLookupQuery = Depends(),
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
-    ) -> list[FriendUser]:
-        cleaned_query = q.strip()
+    ) -> FriendLookupResponse:
+        limiter = get_friend_lookup_rate_limiter()
+        rate_limit_key = _build_friend_lookup_rate_limit_key(request, current_user.id)
+        rate_limit_decision = limiter.check(rate_limit_key)
+        if not rate_limit_decision.allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many username lookups. Please wait and try again.",
+                headers={"Retry-After": str(rate_limit_decision.retry_after_seconds)},
+            )
+
+        limiter.record_attempt(rate_limit_key)
+        if params.username == current_user.username:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot add yourself as a friend.")
+
         friend_ids = _accepted_friend_id_set(db, current_user.id)
         pending_outgoing = _pending_outgoing_set(db, current_user.id)
         pending_incoming = _pending_incoming_set(db, current_user.id)
-        users = db.scalars(
-            select(User)
-            .where(User.id != current_user.id)
-            .where(
-                or_(
-                    User.username.ilike(f"%{cleaned_query}%"),
-                    User.display_name.ilike(f"%{cleaned_query}%"),
-                )
+        user = db.scalar(
+            select(User).where(User.id != current_user.id, User.username == params.username)
+        )
+        if user is None:
+            return FriendLookupResponse(user=None)
+
+        return FriendLookupResponse(
+            user=_serialize_friend_user(
+                user,
+                friend_ids=friend_ids,
+                pending_outgoing=pending_outgoing,
+                pending_incoming=pending_incoming,
             )
-            .order_by(User.display_name.asc())
-            .limit(20)
-        ).all()
-        results = []
-        for user in users:
-            if user.id in friend_ids:
-                fs = "accepted"
-            elif user.id in pending_outgoing:
-                fs = "pending_outgoing"
-            elif user.id in pending_incoming:
-                fs = "pending_incoming"
-            else:
-                fs = "none"
-            results.append(
-                FriendUser(
-                    id=user.id,
-                    username=user.username,
-                    display_name=user.display_name,
-                    avatar_url=user.avatar_url,
-                    is_friend=user.id in friend_ids,
-                    friendship_status=fs,
-                )
-            )
-        return results
+        )
 
     @app.get("/api/friends/list", response_model=list[FriendUser])
     def list_friends(
@@ -228,14 +310,7 @@ def create_app() -> FastAPI:
             .order_by(User.display_name.asc())
         ).all()
         return [
-            FriendUser(
-                id=user.id,
-                username=user.username,
-                display_name=user.display_name,
-                avatar_url=user.avatar_url,
-                is_friend=True,
-                friendship_status="accepted",
-            )
+            _serialize_friend_user(user, friend_ids=friend_ids)
             for user in users
         ]
 
@@ -272,6 +347,16 @@ def create_app() -> FastAPI:
         if reverse is not None and reverse.status == "pending":
             reverse.status = "accepted"
             db.add(Friendship(user_id=current_user.id, friend_id=friend_id, status="accepted"))
+            log_activity_event(
+                db,
+                event_type=EVENT_FRIEND_REQUEST_ACCEPTED,
+                actor_user_id=current_user.id,
+                subject_user_id=friend.id,
+                details={
+                    "actor_username": current_user.username,
+                    "subject_username": friend.username,
+                },
+            )
             db.commit()
             return FriendUser(
                 id=friend.id,
@@ -283,6 +368,16 @@ def create_app() -> FastAPI:
             )
 
         db.add(Friendship(user_id=current_user.id, friend_id=friend_id, status="pending"))
+        log_activity_event(
+            db,
+            event_type=EVENT_FRIEND_REQUEST_SENT,
+            actor_user_id=current_user.id,
+            subject_user_id=friend.id,
+            details={
+                "actor_username": current_user.username,
+                "subject_username": friend.username,
+            },
+        )
         db.commit()
 
         return FriendUser(
@@ -300,6 +395,17 @@ def create_app() -> FastAPI:
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user),
     ) -> None:
+        friend = db.scalar(select(User).where(User.id == friend_id))
+        groups_removing_friend = db.scalars(
+            select(Group)
+            .join(GroupMembership, GroupMembership.group_id == Group.id)
+            .where(Group.owner_id == current_user.id, GroupMembership.user_id == friend_id)
+        ).all()
+        groups_removing_current_user = db.scalars(
+            select(Group)
+            .join(GroupMembership, GroupMembership.group_id == Group.id)
+            .where(Group.owner_id == friend_id, GroupMembership.user_id == current_user.id)
+        ).all()
         friendship = db.scalar(
             select(Friendship).where(Friendship.user_id == current_user.id, Friendship.friend_id == friend_id)
         )
@@ -310,6 +416,48 @@ def create_app() -> FastAPI:
         )
         if reverse is not None:
             db.delete(reverse)
+
+        if friend is not None:
+            log_activity_event(
+                db,
+                event_type=EVENT_FRIEND_REMOVED,
+                actor_user_id=current_user.id,
+                subject_user_id=friend.id,
+                details={
+                    "actor_username": current_user.username,
+                    "subject_username": friend.username,
+                },
+            )
+        for group in groups_removing_friend:
+            _touch_group_activity(group)
+            if friend is None:
+                continue
+            log_activity_event(
+                db,
+                event_type=EVENT_GROUP_MEMBER_REMOVED,
+                actor_user_id=current_user.id,
+                subject_user_id=friend.id,
+                group_id=group.id,
+                details={
+                    "actor_username": current_user.username,
+                    "subject_username": friend.username,
+                    "group_name": group.name,
+                },
+            )
+        for group in groups_removing_current_user:
+            _touch_group_activity(group)
+            log_activity_event(
+                db,
+                event_type=EVENT_GROUP_MEMBER_REMOVED,
+                actor_user_id=current_user.id,
+                subject_user_id=current_user.id,
+                group_id=group.id,
+                details={
+                    "actor_username": current_user.username,
+                    "subject_username": current_user.username,
+                    "group_name": group.name,
+                },
+            )
 
         # Remove each other from each other's groups
         db.execute(
@@ -378,6 +526,16 @@ def create_app() -> FastAPI:
             db.add(Friendship(user_id=current_user.id, friend_id=req.user_id, status="accepted"))
         else:
             existing_reverse.status = "accepted"
+        log_activity_event(
+            db,
+            event_type=EVENT_FRIEND_REQUEST_ACCEPTED,
+            actor_user_id=current_user.id,
+            subject_user_id=req.user_id,
+            details={
+                "actor_username": current_user.username,
+                "subject_username": req.user.username,
+            },
+        )
         db.commit()
         return FriendUser(
             id=req.user.id,
@@ -401,6 +559,18 @@ def create_app() -> FastAPI:
         )
         if req is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Friend request not found.")
+        requester = db.scalar(select(User).where(User.id == req.user_id))
+        if requester is not None:
+            log_activity_event(
+                db,
+                event_type=EVENT_FRIEND_REQUEST_REJECTED,
+                actor_user_id=current_user.id,
+                subject_user_id=requester.id,
+                details={
+                    "actor_username": current_user.username,
+                    "subject_username": requester.username,
+                },
+            )
         db.delete(req)
         db.commit()
 
@@ -432,6 +602,16 @@ def create_app() -> FastAPI:
         db.add(group)
         db.flush()
         db.add(GroupMembership(group_id=group.id, user_id=current_user.id, role="owner"))
+        log_activity_event(
+            db,
+            event_type=EVENT_GROUP_CREATED,
+            actor_user_id=current_user.id,
+            group_id=group.id,
+            details={
+                "actor_username": current_user.username,
+                "group_name": group.name,
+            },
+        )
 
         member_ids = {member_id for member_id in payload.member_ids if member_id != current_user.id}
         if member_ids:
@@ -439,9 +619,57 @@ def create_app() -> FastAPI:
             valid_ids = {user.id for user in users}
             for member_id in valid_ids:
                 db.add(GroupMembership(group_id=group.id, user_id=member_id, role="member"))
+            for user in users:
+                log_activity_event(
+                    db,
+                    event_type=EVENT_GROUP_MEMBER_ADDED,
+                    actor_user_id=current_user.id,
+                    subject_user_id=user.id,
+                    group_id=group.id,
+                    details={
+                        "actor_username": current_user.username,
+                        "subject_username": user.username,
+                        "group_name": group.name,
+                    },
+                )
 
         db.commit()
         db.refresh(group)
+        group = db.scalar(
+            select(Group)
+            .where(Group.id == group.id)
+            .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
+        )
+        return _serialize_group(group, current_user.id)
+
+    @app.patch("/api/groups/{group_id}", response_model=GroupSummary)
+    def update_group(
+        group_id: int,
+        payload: GroupUpdateRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> GroupSummary:
+        group = db.scalar(select(Group).where(Group.id == group_id, Group.owner_id == current_user.id))
+        if group is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found or you don't have permission.")
+        previous_name = group.name
+        group.name = payload.name
+        if previous_name != payload.name:
+            log_activity_event(
+                db,
+                event_type=EVENT_GROUP_RENAMED,
+                actor_user_id=current_user.id,
+                group_id=group.id,
+                details={
+                    "actor_username": current_user.username,
+                    "group_name": payload.name,
+                    "previous_name": previous_name,
+                    "new_name": payload.name,
+                },
+            )
+        db.commit()
+        db.refresh(group)
+
         group = db.scalar(
             select(Group)
             .where(Group.id == group.id)
@@ -458,7 +686,147 @@ def create_app() -> FastAPI:
         group = db.scalar(select(Group).where(Group.id == group_id, Group.owner_id == current_user.id))
         if group is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found or you don't have permission.")
+        log_activity_event(
+            db,
+            event_type=EVENT_GROUP_DELETED,
+            actor_user_id=current_user.id,
+            group_id=group.id,
+            details={
+                "actor_username": current_user.username,
+                "group_name": group.name,
+            },
+        )
         db.delete(group)
+        db.commit()
+
+    @app.post("/api/groups/{group_id}/members", response_model=GroupSummary)
+    def add_group_members(
+        group_id: int,
+        payload: GroupAddMembersRequest,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> GroupSummary:
+        group = _get_accessible_group(db, group_id, current_user.id)
+        if group.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the group owner can add members.")
+
+        existing_member_ids = {m.user_id for m in group.memberships}
+        new_member_ids = {m_id for m_id in payload.member_ids if m_id not in existing_member_ids}
+
+        if new_member_ids:
+            users = db.scalars(select(User).where(User.id.in_(new_member_ids))).all()
+            valid_ids = {user.id for user in users}
+            for member_id in valid_ids:
+                db.add(GroupMembership(group_id=group.id, user_id=member_id, role="member"))
+            _touch_group_activity(group)
+            for user in users:
+                log_activity_event(
+                    db,
+                    event_type=EVENT_GROUP_MEMBER_ADDED,
+                    actor_user_id=current_user.id,
+                    subject_user_id=user.id,
+                    group_id=group.id,
+                    details={
+                        "actor_username": current_user.username,
+                        "subject_username": user.username,
+                        "group_name": group.name,
+                    },
+                )
+            db.commit()
+            db.refresh(group)
+            group = db.scalar(
+                select(Group)
+                .where(Group.id == group.id)
+                .options(joinedload(Group.memberships).joinedload(GroupMembership.user), joinedload(Group.tracks))
+            )
+
+        return _serialize_group(group, current_user.id)
+
+    @app.delete("/api/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def remove_group_member(
+        group_id: int,
+        user_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        group = _get_accessible_group(db, group_id, current_user.id)
+
+        if user_id != current_user.id and group.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to remove this member.")
+
+        membership = db.scalar(select(GroupMembership).where(GroupMembership.group_id == group.id, GroupMembership.user_id == user_id))
+        if membership is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found in group.")
+        subject_user = db.scalar(select(User).where(User.id == user_id))
+
+        if user_id == group.owner_id:
+            next_member = db.scalar(
+                select(GroupMembership)
+                .where(GroupMembership.group_id == group.id, GroupMembership.user_id != user_id)
+                .order_by(GroupMembership.created_at.asc())
+            )
+
+            if next_member:
+                group.owner_id = next_member.user_id
+                next_member.role = "owner"
+                _touch_group_activity(group)
+                next_owner = db.scalar(select(User).where(User.id == next_member.user_id))
+                if next_owner is not None:
+                    log_activity_event(
+                        db,
+                        event_type=EVENT_GROUP_OWNER_TRANSFERRED,
+                        actor_user_id=current_user.id,
+                        subject_user_id=next_owner.id,
+                        group_id=group.id,
+                        details={
+                            "actor_username": current_user.username,
+                            "subject_username": next_owner.username,
+                            "group_name": group.name,
+                        },
+                    )
+                if subject_user is not None:
+                    log_activity_event(
+                        db,
+                        event_type=EVENT_GROUP_MEMBER_REMOVED,
+                        actor_user_id=current_user.id,
+                        subject_user_id=subject_user.id,
+                        group_id=group.id,
+                        details={
+                            "actor_username": current_user.username,
+                            "subject_username": subject_user.username,
+                            "group_name": group.name,
+                        },
+                    )
+                db.delete(membership)
+            else:
+                log_activity_event(
+                    db,
+                    event_type=EVENT_GROUP_DELETED,
+                    actor_user_id=current_user.id,
+                    group_id=group.id,
+                    details={
+                        "actor_username": current_user.username,
+                        "group_name": group.name,
+                    },
+                )
+                db.delete(group)
+        else:
+            _touch_group_activity(group)
+            if subject_user is not None:
+                log_activity_event(
+                    db,
+                    event_type=EVENT_GROUP_MEMBER_REMOVED,
+                    actor_user_id=current_user.id,
+                    subject_user_id=subject_user.id,
+                    group_id=group.id,
+                    details={
+                        "actor_username": current_user.username,
+                        "subject_username": subject_user.username,
+                        "group_name": group.name,
+                    },
+                )
+            db.delete(membership)
+
         db.commit()
 
     @app.get("/api/groups/{group_id}/tracks", response_model=list[TrackSummary])
@@ -484,7 +852,23 @@ def create_app() -> FastAPI:
         current_user: User = Depends(get_current_user),
     ) -> TrackSummary:
         group = _get_accessible_group(db, group_id, current_user.id)
-        resolved = await resolve_track(payload.url, db=db)
+        try:
+            resolution = await resolve_track_with_details(payload.url, db=db)
+        except HTTPException as exc:
+            log_activity_event(
+                db,
+                event_type=EVENT_TRACK_METADATA_FAILED,
+                actor_user_id=current_user.id,
+                group_id=group.id,
+                details={
+                    "actor_username": current_user.username,
+                    "group_name": group.name,
+                    "error_detail": _error_detail_text(exc.detail),
+                },
+            )
+            db.commit()
+            raise
+        resolved = resolution.track
         track = TrackShare(
             group_id=group.id,
             shared_by_id=current_user.id,
@@ -500,10 +884,113 @@ def create_app() -> FastAPI:
             track_signature=resolved.signature,
         )
         db.add(track)
+        db.flush()
+        _touch_group_activity(group)
+        log_activity_event(
+            db,
+            event_type=EVENT_TRACK_SHARED,
+            actor_user_id=current_user.id,
+            group_id=group.id,
+            track_share_id=track.id,
+            details={
+                "actor_username": current_user.username,
+                "group_name": group.name,
+                "track_title": resolved.title,
+                "track_artist": resolved.artist,
+                "source_label": SOURCE_LABELS.get(resolved.source, resolved.source.title()),
+                "resolution_source": resolution.resolution_source,
+            },
+        )
         db.commit()
         db.refresh(track)
         track = db.scalar(select(TrackShare).where(TrackShare.id == track.id).options(joinedload(TrackShare.shared_by)))
         return _serialize_track(track)
+
+    @app.delete("/api/groups/{group_id}/tracks/{track_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def remove_group_track(
+        group_id: int,
+        track_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> None:
+        group = _get_accessible_group(db, group_id, current_user.id)
+        
+        track = db.scalar(select(TrackShare).where(TrackShare.id == track_id, TrackShare.group_id == group.id))
+        if track is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Track not found in group.")
+            
+        if track.shared_by_id != current_user.id and group.owner_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to remove this track.")
+
+        _touch_group_activity(group)
+        log_activity_event(
+            db,
+            event_type=EVENT_TRACK_REMOVED,
+            actor_user_id=current_user.id,
+            group_id=group.id,
+            track_share_id=track.id,
+            details={
+                "actor_username": current_user.username,
+                "group_name": group.name,
+                "track_title": track.title,
+                "track_artist": track.artist,
+            },
+        )
+        db.delete(track)
+        db.commit()
+
+    @app.get("/api/tracks/feed", response_model=list[TrackSummary])
+    def get_tracks_feed(
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[TrackSummary]:
+        tracks = db.scalars(
+            select(TrackShare)
+            .join(Group, Group.id == TrackShare.group_id)
+            .join(GroupMembership, GroupMembership.group_id == Group.id)
+            .where(GroupMembership.user_id == current_user.id)
+            .options(joinedload(TrackShare.shared_by))
+            .order_by(TrackShare.shared_at.desc())
+            .limit(50)
+        ).all()
+        return [_serialize_track(track) for track in tracks]
+
+    @app.get("/api/groups/{group_id}/activity", response_model=list[ActivityEventSummary])
+    def group_activity(
+        group_id: int,
+        limit: int = Query(default=12, ge=1, le=50),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[ActivityEventSummary]:
+        group = _get_accessible_group(db, group_id, current_user.id)
+        events = db.scalars(
+            select(ActivityEvent)
+            .where(ActivityEvent.group_id == group.id, ActivityEvent.event_type.in_(GROUP_ACTIVITY_EVENT_TYPES))
+            .options(joinedload(ActivityEvent.actor), joinedload(ActivityEvent.subject_user))
+            .order_by(ActivityEvent.occurred_at.desc())
+            .limit(limit)
+        ).all()
+        return [serialize_activity_event(event) for event in events]
+
+    @app.get("/api/activity/me", response_model=list[ActivityEventSummary])
+    def personal_activity(
+        limit: int = Query(default=20, ge=1, le=50),
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user),
+    ) -> list[ActivityEventSummary]:
+        events = db.scalars(
+            select(ActivityEvent)
+            .where(
+                or_(
+                    ActivityEvent.actor_user_id == current_user.id,
+                    ActivityEvent.subject_user_id == current_user.id,
+                )
+            )
+            .options(joinedload(ActivityEvent.actor), joinedload(ActivityEvent.subject_user))
+            .order_by(ActivityEvent.occurred_at.desc())
+            .limit(limit)
+        ).all()
+        return [serialize_activity_event(event) for event in events]
 
     @app.get("/api/groups/{group_id}/analytics", response_model=AnalyticsResponse)
     def group_analytics(
@@ -551,12 +1038,44 @@ def _serialize_user(user: User) -> UserSummary:
         favorite_genre=user.favorite_genre,
         favorite_artist=user.favorite_artist,
         avatar_url=user.avatar_url,
+        created_at=_ensure_aware(user.created_at),
+        last_login_at=_ensure_aware(user.last_login_at) if user.last_login_at is not None else None,
+        login_count=user.login_count or 0,
+        profile_updated_at=_ensure_aware(user.profile_updated_at) if user.profile_updated_at is not None else None,
     )
 
 
 def _token_response_for_user(user: User) -> TokenResponse:
     token = create_access_token(str(user.id))
     return TokenResponse(access_token=token, user=_serialize_user(user))
+
+
+def _serialize_friend_user(
+    user: User,
+    *,
+    friend_ids: set[int],
+    pending_outgoing: set[int] | None = None,
+    pending_incoming: set[int] | None = None,
+) -> FriendUser:
+    outgoing_ids = pending_outgoing or set()
+    incoming_ids = pending_incoming or set()
+
+    friendship_status = "none"
+    if user.id in friend_ids:
+        friendship_status = "accepted"
+    elif user.id in outgoing_ids:
+        friendship_status = "pending_outgoing"
+    elif user.id in incoming_ids:
+        friendship_status = "pending_incoming"
+
+    return FriendUser(
+        id=user.id,
+        username=user.username,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        is_friend=user.id in friend_ids,
+        friendship_status=friendship_status,
+    )
 
 
 def _accepted_friend_id_set(db: Session, user_id: int) -> set[int]:
@@ -581,9 +1100,13 @@ def _pending_incoming_set(db: Session, user_id: int) -> set[int]:
 
 
 def _serialize_group(group: Group, current_user_id: int) -> GroupSummary:
-    last_active_at = None
-    if group.tracks:
-        last_active_at = max(track.shared_at for track in group.tracks)
+    timestamps = [
+        _ensure_aware(track.shared_at)
+        for track in group.tracks
+    ]
+    if group.updated_at is not None:
+        timestamps.append(_ensure_aware(group.updated_at))
+    last_active_at = max(timestamps) if timestamps else None
     return GroupSummary(
         id=group.id,
         name=group.name,
@@ -591,6 +1114,7 @@ def _serialize_group(group: Group, current_user_id: int) -> GroupSummary:
         track_count=len(group.tracks),
         last_active_at=last_active_at,
         members=[membership.user.username for membership in group.memberships],
+        member_details=[{"id": m.user.id, "username": m.user.username} for m in group.memberships],
         is_owner=group.owner_id == current_user_id,
     )
 
@@ -629,6 +1153,21 @@ def _ensure_aware(value: datetime) -> datetime:
     return value.replace(tzinfo=timezone.utc)
 
 
+def _touch_group_activity(group: Group) -> None:
+    group.updated_at = utcnow()
+
+
+def _error_detail_text(detail: object) -> str:
+    if isinstance(detail, str):
+        return detail
+    return "Track metadata could not be resolved."
+
+
 def _build_auth_rate_limit_key(request: Request, identifier: str) -> str:
     client_host = request.client.host if request.client is not None else "unknown"
     return f"{client_host}:{identifier.strip().lower()}"
+
+
+def _build_friend_lookup_rate_limit_key(request: Request, user_id: int) -> str:
+    client_host = request.client.host if request.client is not None else "unknown"
+    return f"{user_id}:{client_host}"

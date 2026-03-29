@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.services.track_metadata.cache import InMemoryMetadataCache, LayeredMetadataCache
-from app.services.track_metadata.domain import ResolvedTrack, TrackSource
+from app.services.track_metadata.domain import MetadataResolutionResult, ResolvedTrack, TrackSource
 from app.services.track_metadata.enrichment import ItunesMetadataEnricher
 from app.services.track_metadata.parsers import build_metadata_lookup
 from app.services.track_metadata.providers import (
@@ -49,10 +49,17 @@ class TrackMetadataResolver:
         self.enricher = enricher
 
     async def resolve(self, url: str, db: Session | None = None) -> ResolvedTrack:
+        return (await self.resolve_with_details(url, db=db)).track
+
+    async def resolve_with_details(self, url: str, db: Session | None = None) -> MetadataResolutionResult:
         lookup = build_metadata_lookup(url)
         cached_track = self.cache.get(lookup, db=db)
         if cached_track is not None:
-            return cached_track
+            return MetadataResolutionResult(
+                track=cached_track,
+                resolution_source="cache",
+                provider_name=lookup.source,
+            )
 
         provider = self.providers.get(lookup.source)
         if provider is None:
@@ -77,7 +84,11 @@ class TrackMetadataResolver:
             ) from exc
 
         self.cache.set(lookup, resolved_track, db=db)
-        return resolved_track
+        return MetadataResolutionResult(
+            track=resolved_track,
+            resolution_source="provider",
+            provider_name=lookup.source,
+        )
 
 
 def _map_http_status_error(exc: httpx.HTTPStatusError) -> HTTPException:
