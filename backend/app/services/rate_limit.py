@@ -109,9 +109,9 @@ class SharedFixedWindowRateLimiter:
         return RateLimitDecision(allowed=False, retry_after_seconds=max(1, retry_after))
 
     def record_failure(self, key: str) -> None:
-        current_count = self.store.increment(self.namespace, key)
-        if current_count == 1:
-            self.store.expire(self.namespace, key, ttl_seconds=self.window_seconds)
+        self.store.increment_with_expire(
+            self.namespace, key, ttl_seconds=self.window_seconds,
+        )
 
     def record_attempt(self, key: str) -> None:
         self.record_failure(key)

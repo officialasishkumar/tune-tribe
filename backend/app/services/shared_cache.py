@@ -26,6 +26,10 @@ class CacheBackend(Protocol):
 
     def incr(self, key: str) -> int: ...
 
+    def incr_with_expire(self, key: str, ttl_seconds: int) -> int:
+        """Increment a key and set its TTL atomically on the same backend."""
+        ...
+
     def expire(self, key: str, ttl_seconds: int) -> bool: ...
 
     def ttl(self, key: str) -> int | None: ...
@@ -65,6 +69,18 @@ class MemoryCacheBackend:
             current_value = int(entry.value) if entry is not None else 0
             next_value = current_value + 1
             expires_at = entry.expires_at if entry is not None else None
+            self._entries[key] = MemoryCacheEntry(value=str(next_value), expires_at=expires_at)
+            return next_value
+
+    def incr_with_expire(self, key: str, ttl_seconds: int) -> int:
+        with self._lock:
+            entry = self._current_entry(key)
+            current_value = int(entry.value) if entry is not None else 0
+            next_value = current_value + 1
+            if current_value == 0:
+                expires_at = self.now_provider() + timedelta(seconds=max(1, ttl_seconds))
+            else:
+                expires_at = entry.expires_at if entry is not None else None
             self._entries[key] = MemoryCacheEntry(value=str(next_value), expires_at=expires_at)
             return next_value
 
@@ -122,6 +138,16 @@ class RedisCacheBackend:
     def incr(self, key: str) -> int:
         return int(self.client.incr(key))
 
+    def incr_with_expire(self, key: str, ttl_seconds: int) -> int:
+        pipe = self.client.pipeline(transaction=True)
+        pipe.incr(key)
+        pipe.ttl(key)
+        count, current_ttl = pipe.execute()
+        count = int(count)
+        if count == 1 or int(current_ttl) < 0:
+            self.client.expire(key, ttl_seconds)
+        return count
+
     def expire(self, key: str, ttl_seconds: int) -> bool:
         return bool(self.client.expire(key, ttl_seconds))
 
@@ -160,6 +186,12 @@ class ResilientCacheBackend:
             return self.primary.incr(key)
         except RedisError:
             return self.fallback.incr(key)
+
+    def incr_with_expire(self, key: str, ttl_seconds: int) -> int:
+        try:
+            return self.primary.incr_with_expire(key, ttl_seconds)
+        except RedisError:
+            return self.fallback.incr_with_expire(key, ttl_seconds)
 
     def expire(self, key: str, ttl_seconds: int) -> bool:
         try:
@@ -206,6 +238,9 @@ class CacheStore:
 
     def increment(self, *parts: object) -> int:
         return self.backend.incr(self._key(*parts))
+
+    def increment_with_expire(self, *parts: object, ttl_seconds: int) -> int:
+        return self.backend.incr_with_expire(self._key(*parts), ttl_seconds)
 
     def expire(self, *parts: object, ttl_seconds: int) -> bool:
         return self.backend.expire(self._key(*parts), ttl_seconds)
