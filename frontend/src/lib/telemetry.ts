@@ -451,7 +451,10 @@ export const installTelemetry = () => {
 
 export const trackPageview = () => {
   if (!isTelemetryEnabled() || typeof window === "undefined") return;
-  if (isSkippedPath()) return;
+  if (isSkippedPath()) {
+    lastPageviewKey = null;
+    return;
+  }
 
   const pageKey = `${window.location.pathname}|${window.location.search}|${window.location.hash}`;
   if (pageKey === lastPageviewKey) return;
