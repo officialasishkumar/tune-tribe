@@ -32,6 +32,10 @@ class UserSummary(APIModel):
     favorite_genre: str | None = None
     favorite_artist: str | None = None
     avatar_url: str | None = None
+    created_at: datetime
+    last_login_at: datetime | None = None
+    login_count: int = 0
+    profile_updated_at: datetime | None = None
 
 
 class TokenResponse(APIModel):
@@ -167,6 +171,37 @@ class GroupCreateRequest(APIModel):
         return deduplicated
 
 
+class GroupUpdateRequest(APIModel):
+    name: str = Field(min_length=2, max_length=120)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class GroupAddMembersRequest(APIModel):
+    member_ids: list[int] = Field(min_length=1)
+
+    @field_validator("member_ids")
+    @classmethod
+    def normalize_member_ids(cls, value: list[int]) -> list[int]:
+        deduplicated: list[int] = []
+        seen: set[int] = set()
+        for member_id in value:
+            if member_id <= 0:
+                raise ValueError("Member IDs must be positive integers.")
+            if member_id not in seen:
+                seen.add(member_id)
+                deduplicated.append(member_id)
+        return deduplicated
+
+
+class GroupMember(APIModel):
+    id: int
+    username: str
+
+
 class GroupSummary(APIModel):
     id: int
     name: str
@@ -174,6 +209,7 @@ class GroupSummary(APIModel):
     track_count: int
     last_active_at: datetime | None
     members: list[str]
+    member_details: list[GroupMember] = Field(default_factory=list)
     is_owner: bool = False
 
 
@@ -198,6 +234,14 @@ class TrackSummary(APIModel):
     album_art_url: str | None = None
     duration_ms: int | None = None
     shared_at: datetime
+
+
+class ActivityEventSummary(APIModel):
+    id: int
+    event_type: str
+    title: str
+    detail: str | None = None
+    occurred_at: datetime
 
 
 class StatPoint(APIModel):

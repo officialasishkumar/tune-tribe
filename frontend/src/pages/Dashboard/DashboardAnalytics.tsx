@@ -1,5 +1,6 @@
 import { StatCard, GenreDistribution, SourceLoyalty, WeeklyActivity } from "@/components/AnalyticsCharts";
-import type { Analytics } from "@/lib/types";
+import { RecentActivityFeed } from "@/components/RecentActivityFeed";
+import type { ActivityEvent, Analytics } from "@/lib/types";
 
 type DashboardAnalyticsProps = {
   weeklyTotal: number;
@@ -7,6 +8,7 @@ type DashboardAnalyticsProps = {
   topGenre: string;
   topSource: string;
   chartData: Analytics | undefined;
+  recentActivity: ActivityEvent[] | undefined;
 };
 
 export const DashboardAnalytics = ({
@@ -15,6 +17,7 @@ export const DashboardAnalytics = ({
   topGenre,
   topSource,
   chartData,
+  recentActivity,
 }: DashboardAnalyticsProps) => {
   return (
     <aside className="hidden lg:block w-80 xl:w-96 h-[calc(100vh-56px)] sticky top-14 overflow-y-auto border-l bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-secondary/20">
@@ -29,6 +32,16 @@ export const DashboardAnalytics = ({
             <StatCard label="Members" value={String(memberCount)} />
             <StatCard label="Top genre" value={topGenre} />
             <StatCard label="Top source" value={topSource} />
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80">Activity Log</h2>
+            <div className="h-px flex-1 bg-border/40" />
+          </div>
+          <div className="p-5 rounded-xl bg-card border shadow-sm">
+            <RecentActivityFeed events={recentActivity ?? []} emptyMessage="No group activity yet." />
           </div>
         </div>
 

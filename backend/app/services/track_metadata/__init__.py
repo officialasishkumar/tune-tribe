@@ -1,5 +1,6 @@
 from app.services.track_metadata.domain import (
     MetadataLookup,
+    MetadataResolutionResult,
     ResolvedTrack,
     SOURCE_LABELS,
     TrackSource,
@@ -16,6 +17,7 @@ from app.services.track_metadata.service import TrackMetadataResolver, get_track
 
 __all__ = [
     "MetadataLookup",
+    "MetadataResolutionResult",
     "ResolvedTrack",
     "SOURCE_LABELS",
     "TrackMetadataResolver",

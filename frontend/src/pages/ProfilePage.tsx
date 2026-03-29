@@ -1,22 +1,20 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Check, Edit3 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
+import { RecentActivityFeed } from "@/components/RecentActivityFeed";
 import { StatCard, GenreDistribution, SourceLoyalty } from "@/components/AnalyticsCharts";
 import { AvatarPickerModal } from "@/components/AvatarPickerModal";
 import { ProfileInfo } from "@/components/ProfileInfo";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { formatRelativeTime } from "@/lib/format";
 import { toast } from "sonner";
-import { useTheme } from "@/hooks/use-theme";
 
 const ProfilePage = () => {
-  const navigate = useNavigate();
   const { updateUser } = useAuth();
-  const { isDark } = useTheme();
   const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -38,6 +36,11 @@ const ProfilePage = () => {
   const analyticsQuery = useQuery({
     queryKey: ["analytics", "me", "all"],
     queryFn: () => api.getPersonalAnalytics("all"),
+  });
+
+  const personalActivityQuery = useQuery({
+    queryKey: ["activity", "me"],
+    queryFn: api.getPersonalActivity,
   });
 
   useEffect(() => {
@@ -120,6 +123,21 @@ const ProfilePage = () => {
           onDataChange={handleDataChange} 
           onAvatarClick={() => setShowAvatarPicker(true)} 
         />
+
+        <section>
+          <div className="flex items-center gap-2 mb-6">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground/80">Recent Activity</h2>
+            <div className="h-px flex-1 bg-border/40" />
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            className="rounded-2xl border bg-card p-6 shadow-sm"
+          >
+            <RecentActivityFeed events={personalActivityQuery.data ?? []} emptyMessage="No personal activity yet." />
+          </motion.div>
+        </section>
 
         {stats.length > 0 && (
           <section>

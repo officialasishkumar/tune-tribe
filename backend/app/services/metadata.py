@@ -6,6 +6,7 @@ from app.services import track_metadata as track_metadata_service
 
 
 ResolvedTrack = track_metadata_service.ResolvedTrack
+MetadataResolutionResult = track_metadata_service.MetadataResolutionResult
 SOURCE_LABELS = track_metadata_service.SOURCE_LABELS
 TrackSource = track_metadata_service.TrackSource
 detect_source = track_metadata_service.detect_source
@@ -17,6 +18,7 @@ parse_video_title = track_metadata_service.parse_video_title
 
 __all__ = [
     "ResolvedTrack",
+    "MetadataResolutionResult",
     "SOURCE_LABELS",
     "TrackSource",
     "detect_source",
@@ -25,8 +27,13 @@ __all__ = [
     "normalize_text",
     "parse_video_title",
     "resolve_track",
+    "resolve_track_with_details",
 ]
 
 
 async def resolve_track(url: str, db: Session | None = None) -> ResolvedTrack:
     return await track_metadata_service.get_track_metadata_resolver().resolve(url, db=db)
+
+
+async def resolve_track_with_details(url: str, db: Session | None = None) -> MetadataResolutionResult:
+    return await track_metadata_service.get_track_metadata_resolver().resolve_with_details(url, db=db)

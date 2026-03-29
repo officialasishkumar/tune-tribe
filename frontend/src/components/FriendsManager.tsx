@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, Bell, Search, X, AlertTriangle } from "lucide-react";
+import { Users, Bell, Search, X, AlertTriangle, BellOff, BellRing } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { ApiError, api } from "@/lib/api";
@@ -22,6 +22,50 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
   const [hasSearched, setHasSearched] = useState(false);
   const [friendToRemove, setFriendToRemove] = useState<Friend | null>(null);
   const queryClient = useQueryClient();
+
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>(
+    "Notification" in window ? Notification.permission : "denied"
+  );
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(
+    typeof localStorage !== "undefined" && typeof localStorage.getItem === "function" ? localStorage.getItem("tuneTribe_notificationsEnabled") !== "false" : true
+  );
+
+  const requestNotificationPermission = async () => {
+    if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        const newState = !notificationsEnabled;
+        setNotificationsEnabled(newState);
+        if (typeof localStorage !== "undefined" && typeof localStorage.setItem === "function") {
+          localStorage.setItem("tuneTribe_notificationsEnabled", String(newState));
+        }
+        if (newState) {
+          toast.success("Notifications enabled!");
+        } else {
+          toast.success("Notifications disabled.");
+        }
+        return;
+      }
+
+      if (Notification.permission === "denied") {
+        toast.error("Notifications are blocked. Please click the site info (lock icon) in your browser address bar to allow them.", {
+          duration: 5000,
+        });
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      if (permission === "granted") {
+        setNotificationsEnabled(true);
+        if (typeof localStorage !== "undefined" && typeof localStorage.setItem === "function") {
+          localStorage.setItem("tuneTribe_notificationsEnabled", "true");
+        }
+        toast.success("Notifications enabled!");
+      } else if (permission === "denied") {
+        toast.error("Notifications were denied. You can enable them later in your browser settings.");
+      }
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -201,9 +245,24 @@ export const FriendsManager = ({ onClose, initialTab = "friends" }: FriendsManag
                   </button>
                 ))}
               </div>
-              <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors mb-2">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                {"Notification" in window && (
+                  <button
+                    onClick={requestNotificationPermission}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    title={notificationPermission === "granted" && notificationsEnabled ? "Notifications Enabled" : "Enable Notifications"}
+                  >
+                    {notificationPermission === "granted" && notificationsEnabled ? (
+                      <BellRing className="w-5 h-5 text-primary" />
+                    ) : (
+                      <BellOff className="w-5 h-5" />
+                    )}
+                  </button>
+                )}
+                <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="max-h-80 overflow-y-auto">
