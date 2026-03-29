@@ -42,13 +42,17 @@ class MemoryCacheEntry:
 
 
 class MemoryCacheBackend:
+    _REAP_INTERVAL_SECONDS = 60
+
     def __init__(self, *, now_provider=utcnow) -> None:
         self.now_provider = now_provider
         self._entries: dict[str, MemoryCacheEntry] = {}
         self._lock = Lock()
+        self._last_reap: datetime = self.now_provider()
 
     def get(self, key: str) -> str | None:
         with self._lock:
+            self._maybe_reap_expired()
             entry = self._current_entry(key)
             return entry.value if entry is not None else None
 
@@ -57,6 +61,7 @@ class MemoryCacheBackend:
         if ttl_seconds is not None:
             expires_at = self.now_provider() + timedelta(seconds=max(1, ttl_seconds))
         with self._lock:
+            self._maybe_reap_expired()
             self._entries[key] = MemoryCacheEntry(value=value, expires_at=expires_at)
 
     def delete(self, key: str) -> None:
@@ -108,6 +113,19 @@ class MemoryCacheBackend:
             self._entries.pop(key, None)
             return None
         return entry
+
+    def _maybe_reap_expired(self) -> None:
+        """Remove expired entries proactively so they don't linger in memory."""
+        now = self.now_provider()
+        if (now - self._last_reap).total_seconds() < self._REAP_INTERVAL_SECONDS:
+            return
+        self._last_reap = now
+        expired_keys = [
+            k for k, entry in self._entries.items()
+            if entry.expires_at is not None and entry.expires_at <= now
+        ]
+        for k in expired_keys:
+            del self._entries[k]
 
 
 class RedisCacheBackend:
