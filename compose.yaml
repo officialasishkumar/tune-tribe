@@ -16,6 +16,19 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -28,6 +41,9 @@ services:
       TUNETRIBE_SEED_DEMO_DATA: ${TUNETRIBE_SEED_DEMO_DATA:-false}
       TUNETRIBE_AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${TUNETRIBE_AUTH_RATE_LIMIT_MAX_ATTEMPTS:-5}
       TUNETRIBE_AUTH_RATE_LIMIT_WINDOW_SECONDS: ${TUNETRIBE_AUTH_RATE_LIMIT_WINDOW_SECONDS:-300}
+      TUNETRIBE_REDIS_URL: ${TUNETRIBE_REDIS_URL:-redis://valkey:6379/0}
+      TUNETRIBE_ANALYTICS_CACHE_TTL_SECONDS: ${TUNETRIBE_ANALYTICS_CACHE_TTL_SECONDS:-120}
+      TUNETRIBE_GLOBAL_STATS_CACHE_TTL_SECONDS: ${TUNETRIBE_GLOBAL_STATS_CACHE_TTL_SECONDS:-300}
       TUNETRIBE_FORWARDED_ALLOW_IPS: ${TUNETRIBE_FORWARDED_ALLOW_IPS:-}
       TUNETRIBE_RUN_STARTUP_TASKS_ON_APP_START: "false"
       TUNETRIBE_WEB_CONCURRENCY: ${TUNETRIBE_WEB_CONCURRENCY:-2}
@@ -35,6 +51,8 @@ services:
       - "8000:8000"
     depends_on:
       mysql:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     healthcheck:
       test:
@@ -64,3 +82,4 @@ services:
 
 volumes:
   mysql_data:
+  valkey_data:

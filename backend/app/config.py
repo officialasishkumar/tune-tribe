@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     metadata_http_timeout_seconds: float = 10.0
     metadata_cache_ttl_seconds: int = 86400
     metadata_memory_cache_max_entries: int = 2048
+    redis_url: str | None = None
+    cache_namespace: str = "tunetribe"
+    analytics_cache_ttl_seconds: int = 120
+    global_stats_cache_ttl_seconds: int = 300
+    redis_connect_timeout_seconds: float = 2.0
+    redis_socket_timeout_seconds: float = 2.0
 
     @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod

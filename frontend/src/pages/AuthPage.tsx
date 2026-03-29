@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Disc3, ArrowRight, Mail, Lock, User, Music, Mic } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { getAuthErrorContent } from "@/lib/auth-errors";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import type { GlobalStatsResponse } from "@/lib/types";
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,14 +20,17 @@ const AuthPage = () => {
   const [favoriteGenre, setFavoriteGenre] = useState("");
   const [favoriteArtist, setFavoriteArtist] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [stats, setStats] = useState<GlobalStatsResponse | null>(null);
 
   const navigate = useNavigate();
   const { isAuthenticated, isLoading, setSession } = useAuth();
 
-  useEffect(() => {
-    api.getGlobalStats().then(setStats).catch(console.error);
-  }, []);
+  const statsQuery = useQuery({
+    queryKey: ["public", "stats"],
+    queryFn: api.getGlobalStats,
+    staleTime: 5 * 60_000,
+    gcTime: 15 * 60_000,
+  });
+  const stats = statsQuery.data ?? null;
 
   if (isLoading) {
     return (
